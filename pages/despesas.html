@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Despesas • Marumbi Gerente</title>
+  <link rel="stylesheet" href="../preload-style.css" />
+  <link rel="stylesheet" href="../styles.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css" />
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#181a1b" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)">
+</head>
+<body>
+  <aside class="sidebar">
+  <h1 class="brand">Marumbi<br />Gerente</h1>
+  <nav>
+    <ul>
+      <li><a href="dashboard.html" class="">Dashboard</a></li>
+      <li><a href="cadastro.html"  class="">Cadastro</a></li>
+      <li><a href="despesas.html"  class="active">Despesas</a></li>
+      <li><a href="relatorio.html" class="">Pagamentos</a></li>
+      <li><a href="settings.html"  class="">Configurações</a></li>
+    </ul>
+  </nav>
+</aside>
+
+  <main id="main-content">
+    <section class="page visible">
+  <h2>Lançar Despesa</h2>
+  <form id="formDesp" class="form">
+    <div class="form-row">
+      <label>Data <input type="date" name="data" required autofocus id="dataInput"></label>
+      <label>Fornecedor <input type="text" name="fornecedor" required></label>
+      <label>Unidade
+        <select name="unidade">
+          <option value="UN1">Marumbi I</option>
+          <option value="UN2">Marumbi II</option>
+        </select>
+      </label>
+      <label>Tipo
+        <select name="tipo">
+          <option value="boleto">Boleto</option>
+          <option value="variavel">Variável</option>
+        </select>
+      </label>
+    </div>
+    <div class="form-row">
+      <label>Valor <input type="number" name="valor" step="0.01" min="0" required></label>
+    </div>
+    <button type="submit" class="btn">Salvar</button>
+  </form>
+  <h3 style="margin-top:40px">Últimas despesas (sessão atual)</h3>
+  <table id="previewDesp">
+    <thead>
+      <tr>
+        <th>Data</th>
+        <th>Fornecedor</th>
+        <th>Tipo</th>
+        <th>Unid.</th>
+        <th>Valor</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</section>
+
+  <!-- Modal de confirmação para exclusão -->
+  <div id="deleteModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Confirmar exclusão</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Tem certeza que deseja excluir esta despesa?</p>
+        <p>Esta ação não pode ser desfeita.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-cancel">Cancelar</button>
+        <button class="btn btn-danger" id="confirmDelete">Excluir</button>
+      </div>
+    </div>
+  </div>
+
+  </main>
+  <script src="../renderer.js"></script>
+</body>
+</html>

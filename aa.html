@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Marumbi Gerente</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ===== SIDEBAR ==================================================== -->
+  <aside class="sidebar">
+    <h1 class="brand">Marumbi<br />Gerente</h1>
+
+    <nav>
+      <ul>
+        <li><a href="#" id="nav-dashboard" class="active">Dashboard</a></li>
+        <li><a href="#" id="nav-cadastro">Cadastro</a></li>
+        <li><a href="#" id="nav-despesas">Despesas</a></li>
+        <li><a href="#" id="nav-relatorio">Pagamentos</a></li>
+        <li><a href="#" id="nav-settings">Configurações</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <!-- ===== MAIN PAGES ================================================== -->
+  <main id="main-content">
+    <!-- ---------- DASHBOARD ---------- -->
+    <section id="page-dashboard" class="page visible">
+      <div class="grid">
+        <div id="cards"></div>
+        <div class="chart-wrapper">
+          <h2>Evolução Semanal</h2>
+          <canvas id="chart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- CADASTRO ---------- -->
+    <section id="page-cadastro" class="page">
+      <h2>Lançar Movimentação</h2>
+
+      <form id="entryForm" class="form">
+        <div class="form-row">
+          <label>Data <input type="date" name="data" required /></label>
+          <label>Operador <input type="text" name="operador" required /></label>
+          <label>Unidade
+            <select name="unidade">
+              <option value="UN1">Marumbi I</option>
+              <option value="UN2">Marumbi II</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="form-row">
+          <label>Dinheiro <input type="number" name="din" step="0.01" min="0" value="0" /></label>
+          <label>Débito   <input type="number" name="deb" step="0.01" min="0" value="0" /></label>
+          <label>Crédito  <input type="number" name="cre" step="0.01" min="0" value="0" /></label>
+          <label>Pix      <input type="number" name="pix" step="0.01" min="0" value="0" /></label>
+          <label>Voucher  <input type="number" name="vou" step="0.01" min="0" value="0" /></label>
+        </div>
+
+        <button type="submit" class="btn">Salvar</button>
+      </form>
+
+      <h3 style="margin-top:40px">Últimos lançamentos (sessão atual)</h3>
+      <table id="preview">
+        <thead>
+          <tr>
+            <th>Data</th><th>Op.</th><th>Unid.</th>
+            <th>Din</th><th>Deb</th><th>Cre</th><th>Pix</th><th>Vou</th><th>Total</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- ---------- DESPESA ---------- -->
+    <section id="page-despesas" class="page">
+      <h2>Lançar Despesa</h2>
+
+      <form id="formDesp" class="form">
+        <div class="form-row">
+          <label>Data <input type="date" name="data" required autofocus id="dataInput"></label>
+          <label>Fornecedor <input type="text" name="fornecedor" required></label>
+          <label>Unidade
+            <select name="unidade">
+              <option value="UN1">Marumbi I</option>
+              <option value="UN2">Marumbi II</option>
+            </select>
+          </label>
+          <label>Tipo
+            <select name="tipo">
+              <option value="boleto">Boleto</option>
+              <option value="variavel">Variável</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="form-row">
+          <label>Valor <input type="number" name="valor" step="0.01" min="0" required></label>
+        </div>
+
+        <button type="submit" class="btn">Salvar</button>
+      </form>
+
+      <h3 style="margin-top:40px">Últimas despesas (sessão atual)</h3>
+      <table id="previewDesp">
+        <thead>
+          <tr><th>Data</th><th>Fornecedor</th><th>Tipo</th><th>Unid.</th><th>Valor</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+    <!-- ---------- PAGAMENTOS ---------- -->
+    <section id="page-relatorio" class="page">
+      <h2>Pagamentos • Boletos / Variáveis</h2>
+
+      <div class="toolbar">
+        <label>Unidade
+          <select id="f-unidade">
+            <option value="all">Todas</option>
+            <option value="UN1">Marumbi I</option>
+            <option value="UN2">Marumbi II</option>
+          </select>
+        </label>
+
+        <label>Tipo
+          <select id="f-tipo">
+            <option value="all">Todos</option>
+            <option value="boleto">Boletos</option>      <!-- minúsculo -->
+            <option value="variavel">Variáveis</option>  <!-- sem acento -->
+          </select>
+        </label>
+
+        <label>Status
+          <select id="f-status">
+            <option value="all">Todos</option>
+            <option value="np">Não pagos</option>
+            <option value="p">Pagos</option>
+          </select>
+        </label>
+      </div>
+
+      <table id="tblPag">
+        <thead>
+          <tr>
+            <th>Venc.</th><th>Fornecedor</th><th>Tipo</th>
+            <th>Unid.</th><th>Valor</th><th>Pago</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- ---------- CONFIG ----------- -->
+    <section id="page-settings" class="page">
+      <h2>Configurações</h2>
+      <label class="switch">
+        <input type="checkbox" id="themeToggle" />
+        <span class="slider"></span>
+      </label>
+      <span id="themeLabel">Tema Claro</span>
+    </section>
+  </main>
+
+  <!-- SEU renderer.js -->
+  <script src="renderer.js"></script>
+  <script>
+    const links = document.querySelectorAll('.sidebar nav a');
+    const pages = document.querySelectorAll('.page');
+  
+    links.forEach(link => {
+      link.addEventListener('click', e => {
+        e.preventDefault();
+  
+        // Remove classe "active" de todos os links
+        links.forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+  
+        // Oculta todas as páginas
+        pages.forEach(p => p.classList.remove('visible'));
+  
+        // Mostra a página correspondente
+        const id = link.id.replace('nav-', 'page-');
+        const target = document.getElementById(id);
+        if (target) {
+          target.classList.add('visible');
+  
+          // Se for a aba de despesas, foca no input de data
+          if (id === 'page-despesas') {
+            setTimeout(() => {
+              const input = document.getElementById('dataInput');
+              if (input) input.focus();
+            }, 100); // pequeno delay garante foco após renderização
+          }
+        }
+      });
+    });
+  
+    // Garantir foco também no carregamento inicial se "Despesas" estiver visível
+    window.addEventListener('load', () => {
+      if (document.getElementById('page-despesas').classList.contains('visible')) {
+        const input = document.getElementById('dataInput');
+        if (input) input.focus();
+      }
+    });
+  </script>
+  
+</body>
+</html>

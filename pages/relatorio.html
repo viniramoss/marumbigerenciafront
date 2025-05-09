@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Relatorio • Marumbi Gerente</title>
+  <link rel="stylesheet" href="../preload-style.css" />
+  <link rel="stylesheet" href="../styles.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css" />
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#181a1b" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)">
+</head>
+<body>
+  <aside class="sidebar">
+  <h1 class="brand">Marumbi<br />Gerente</h1>
+  <nav>
+    <ul>
+      <li><a href="dashboard.html" class="">Dashboard</a></li>
+      <li><a href="cadastro.html"  class="">Cadastro</a></li>
+      <li><a href="despesas.html"  class="">Despesas</a></li>
+      <li><a href="relatorio.html" class="active">Pagamentos</a></li>
+      <li><a href="settings.html"  class="">Configurações</a></li>
+    </ul>
+  </nav>
+</aside>
+
+  <main id="main-content">
+    <section class="page visible">
+  <h2>Pagamentos • Boletos / Variáveis</h2>
+  <div class="toolbar">
+    <label>Unidade
+      <select id="f-unidade">
+        <option value="all">Todas</option>
+        <option value="UN1">Marumbi I</option>
+        <option value="UN2">Marumbi II</option>
+      </select>
+    </label>
+    <label>Tipo
+      <select id="f-tipo">
+        <option value="all">Todos</option>
+        <option value="boleto">Boletos</option>
+        <option value="variavel">Variáveis</option>
+      </select>
+    </label>
+    <label>Status
+      <select id="f-status">
+        <option value="all">Todos</option>
+        <option value="np">Não pagos</option>
+        <option value="p">Pagos</option>
+      </select>
+    </label>
+  </div>
+  <table id="tblPag">
+    <thead>
+      <tr>
+        <th>Venc.</th>
+        <th>Fornecedor</th>
+        <th>Tipo</th>
+        <th>Unid.</th>
+        <th>Valor</th>
+        <th>Banco</th>
+        <th>Método</th>
+        <th>Pago</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</section>
+
+  <!-- Modal de seleção de banco -->
+  <div id="bankModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Escolha o banco</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="payment-options">
+          <!-- Opções geradas dinamicamente pelo JavaScript -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-cancel">Cancelar</button>
+        <button class="btn btn-confirm" id="confirmBank">Continuar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de seleção de método -->
+  <div id="methodModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Escolha o método</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="payment-options">
+          <!-- Opções geradas dinamicamente pelo JavaScript -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-cancel">Cancelar</button>
+        <button class="btn btn-confirm" id="confirmMethod">Confirmar Pagamento</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para adicionar nova opção -->
+  <div id="addOptionModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="addOptionTitle">Adicionar Novo</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label>Nome:
+            <input type="text" id="newOptionName" placeholder="Digite o nome..." required>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-cancel">Cancelar</button>
+        <button class="btn btn-confirm" id="saveNewOption">Adicionar</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Modal de confirmação para exclusão -->
+  <div id="deleteModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Confirmar exclusão</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Tem certeza que deseja excluir esta despesa?</p>
+        <p>Esta ação não pode ser desfeita.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-cancel">Cancelar</button>
+        <button class="btn btn-danger" id="confirmDelete">Excluir</button>
+      </div>
+    </div>
+  </div>
+
+  </main>
+  <script src="../renderer.js"></script>
+</body>
+</html>

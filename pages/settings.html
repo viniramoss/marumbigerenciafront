@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Settings • Marumbi Gerente</title>
+  <link rel="stylesheet" href="../preload-style.css" />
+  <link rel="stylesheet" href="../styles.css" />
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#181a1b" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)">
+</head>
+<body>
+  <aside class="sidebar">
+  <h1 class="brand">Marumbi<br />Gerente</h1>
+  <nav>
+    <ul>
+      <li><a href="dashboard.html" class="">Dashboard</a></li>
+      <li><a href="cadastro.html"  class="">Entrada</a></li>
+      <li><a href="despesas.html"  class="">Despesas</a></li>
+      <li><a href="relatorio.html" class="">Pagamentos</a></li>
+      <li><a href="settings.html"  class="active">Configurações</a></li>
+    </ul>
+  </nav>
+</aside>
+
+  <main id="main-content">
+    <section class="page visible">
+  <h2>Configurações</h2>
+  <label class="switch">
+    <input type="checkbox" id="themeToggle" />
+    <span class="slider"></span>
+  </label>
+  <span id="themeLabel">Tema Claro</span>
+</section>
+
+  </main>
+  <script src="../renderer.js"></script>
+</body>
+</html>

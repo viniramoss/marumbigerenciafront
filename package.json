@@ -1,0 +1,66 @@
+{
+  "name": "marumbi-gerente-dashboard",
+  "version": "2.0.2",
+  "description": "Dashboard financeiro (layout v2) com total corrigido",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "pack": "electron-builder --dir"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.1",
+    "dotenv": "^16.5.0",
+    "xlsx": "0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^28.1.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.marumbi.gerente.dashboard",
+    "productName": "Marumbi Gerente",
+    "directories": {
+      "output": "dist"
+    },
+    "extraResources": [
+      {
+        "from": ".env",
+        "to": ".env"
+      }
+    ],
+    "files": [
+      "**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Marumbi Gerente"
+    }
+  },
+  "author": {
+    "name": "Marumbi",
+    "email": "contato@marumbi.com.br"
+  },
+  "license": "ISC"
+}

@@ -1,0 +1,22 @@
+/* preload-style.css - Carregado antes de qualquer outro CSS */
+html, body {
+    transition: background-color 0.1s ease, color 0.1s ease;
+  }
+  
+  /* Adicione este script inline para verificar o tema rapidamente */
+  :root {
+    color-scheme: light dark;
+  }
+  
+  /* Este script será executado imediatamente, antes mesmo do DOM estar completamente carregado */
+  @media (prefers-color-scheme: dark) {
+    html, body {
+      background-color: #181a1b;
+      color: #dfdfdf;
+    }
+  }
+  
+  body.dark {
+    background-color: #181a1b;
+    color: #dfdfdf;
+  }
