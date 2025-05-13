@@ -1,4 +1,4 @@
-/* despesas.js – cadastro de boletos / variáveis (SQLite via Spring) */
+/* despesas.js – MODIFICADO para marcar despesas do tipo "variavel" como pagas automaticamente */
 
 const { API_URL } = require('./env-config');
 const API = `${API_URL}/api/despesas`;
@@ -25,7 +25,9 @@ function init() {
     /* monta objeto da despesa */
     const d = Object.fromEntries(new FormData(form).entries());
     d.valor = parseFloat(d.valor || 0);
-    d.pago  = false;
+    
+    // Modificação: Marca como pago automaticamente se for despesa do tipo "variavel"
+    d.pago = d.tipo === 'variavel' ? true : false;
 
     /* envia ao back-end */
     try {

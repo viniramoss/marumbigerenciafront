@@ -27,6 +27,26 @@
   <main id="main-content">
     <section class="page visible">
   <h2>Pagamentos • Boletos / Variáveis</h2>
+  
+  <!-- Cards de resumo -->
+  <div class="cards-container">
+    <div id="card-total" class="dashboard-card">
+      <h3>Total do Período</h3>
+      <p id="resumo-total">R$ 0,00</p>
+    </div>
+    
+    <div id="card-pago" class="dashboard-card">
+      <h3>Total Pago</h3>
+      <p id="resumo-pago">R$ 0,00</p>
+    </div>
+    
+    <div id="card-a-pagar" class="dashboard-card">
+      <h3>Total a Pagar</h3>
+      <p id="resumo-a-pagar">R$ 0,00</p>
+    </div>
+  </div>
+  
+  <!-- Filtros originais mais os novos -->
   <div class="toolbar">
     <label>Unidade
       <select id="f-unidade">
@@ -49,7 +69,23 @@
         <option value="p">Pagos</option>
       </select>
     </label>
+    
+    <!-- Novos filtros -->
+    <label>Fornecedor
+      <input type="text" id="f-fornecedor" placeholder="Buscar fornecedor..." />
+    </label>
+    <label>Valor
+      <input type="text" id="f-valor" placeholder="Buscar valor..." />
+    </label>
+    <label>Data Inicial
+      <input type="date" id="f-data-inicio" placeholder="dd/mm/aaaa" />
+    </label>
+    <label>Data Final
+      <input type="date" id="f-data-fim" placeholder="dd/mm/aaaa" />
+    </label>
+    <button id="btn-limpar-filtros" class="btn btn-filtro">Limpar Filtros</button>
   </div>
+  
   <table id="tblPag">
     <thead>
       <tr>
