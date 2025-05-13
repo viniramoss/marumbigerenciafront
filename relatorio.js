@@ -29,6 +29,7 @@ let PAYMENT_METHODS = [
 
 function init() {
   if (firstRun) {
+    // Reset dos elementos da UI para evitar referências antigas
     tblBody = document.querySelector('#tblPag tbody');
     fUnid = document.getElementById('f-unidade');
     fTipo = document.getElementById('f-tipo');
@@ -50,30 +51,51 @@ function init() {
     const addOptionModal = document.getElementById('addOptionModal');
     const cardsContainer = document.querySelector('.cards-container');
 
+    // Limpa event listeners antigos clonando e substituindo elementos
+    ['fUnid', 'fTipo', 'fStat', 'fFornecedor', 'fValor', 'fDataInicio', 'fDataFim', 'btnLimparFiltros'].forEach(el => {
+      if (window[el]) {
+        const newEl = window[el].cloneNode(true);
+        window[el].parentNode.replaceChild(newEl, window[el]);
+        window[el] = newEl;
+      }
+    });
+
     // Event listeners para os filtros
-    [fUnid, fTipo, fStat].forEach(sel => sel.addEventListener('change', aplicarFiltros));
+    [fUnid, fTipo, fStat].forEach(sel => {
+      if (sel) sel.addEventListener('change', aplicarFiltros);
+    });
     
     // Event listeners para os novos filtros
-    fFornecedor.addEventListener('input', aplicarFiltros);
-    fValor.addEventListener('input', aplicarFiltros);
-    fDataInicio.addEventListener('change', function() {
-      if (fDataInicio.value) {
-        cardsContainer.classList.remove('hidden');
-      }
-      aplicarFiltros();
-    });
-    fDataFim.addEventListener('change', function() {
-      if (fDataFim.value || fDataInicio.value) {
-        cardsContainer.classList.remove('hidden');
-      }
-      aplicarFiltros();
-    });
+    if (fFornecedor) fFornecedor.addEventListener('input', aplicarFiltros);
+    if (fValor) fValor.addEventListener('input', aplicarFiltros);
+    
+    if (fDataInicio) {
+      fDataInicio.addEventListener('change', function() {
+        if (fDataInicio.value && cardsContainer) {
+          cardsContainer.classList.remove('hidden');
+        }
+        aplicarFiltros();
+      });
+    }
+    
+    if (fDataFim) {
+      fDataFim.addEventListener('change', function() {
+        if ((fDataFim.value || (fDataInicio && fDataInicio.value)) && cardsContainer) {
+          cardsContainer.classList.remove('hidden');
+        }
+        aplicarFiltros();
+      });
+    }
     
     // Botão para limpar filtros
-    btnLimparFiltros.addEventListener('click', limparFiltros);
+    if (btnLimparFiltros) {
+      btnLimparFiltros.addEventListener('click', limparFiltros);
+    }
     
     // Inicialmente, oculta os cards de resumo até que a data seja definida
-    cardsContainer.classList.add('hidden');
+    if (cardsContainer) {
+      cardsContainer.classList.add('hidden');
+    }
     
     // Carregar opções de bancos e métodos do backend
     loadOptionsFromBackend();
@@ -83,6 +105,8 @@ function init() {
     
     firstRun = false;
   }
+  
+  // Sempre busca os dados atualizados
   render();
 }
 
@@ -111,6 +135,8 @@ async function loadOptionsFromBackend() {
 // Função para gerar opções de pagamento dinamicamente
 function generatePaymentOptions(modalId, options) {
   const container = document.querySelector(`#${modalId} .payment-options`);
+  if (!container) return;
+  
   container.innerHTML = ''; // Limpa o conteúdo atual
   
   // Adiciona as opções existentes
@@ -153,20 +179,25 @@ function generatePaymentOptions(modalId, options) {
   addButton.innerHTML = '<i class="fas fa-plus"></i> Adicionar Novo';
   addButton.addEventListener('click', () => {
     const isBank = modalId === 'bankModal';
-    // Configurar o modal de adição
-    document.getElementById('addOptionTitle').textContent = 
-      `Adicionar Novo ${isBank ? 'Banco' : 'Método de Pagamento'}`;
+    const addOptionTitle = document.getElementById('addOptionTitle');
+    if (addOptionTitle) {
+      addOptionTitle.textContent = `Adicionar Novo ${isBank ? 'Banco' : 'Método de Pagamento'}`;
+    }
     
     const inputField = document.getElementById('newOptionName');
-    inputField.value = '';
-    inputField.focus();
+    if (inputField) {
+      inputField.value = '';
+      inputField.focus();
+    }
     
     // Armazenar qual tipo está sendo adicionado
-    document.getElementById('addOptionModal').setAttribute('data-type', isBank ? 'bank' : 'method');
-    
-    // Mostrar o modal
-    document.getElementById('addOptionModal').classList.add('active');
+    const addOptionModal = document.getElementById('addOptionModal');
+    if (addOptionModal) {
+      addOptionModal.setAttribute('data-type', isBank ? 'bank' : 'method');
+      addOptionModal.classList.add('active');
+    }
   });
+  
   container.appendChild(addButton);
 }
 
@@ -192,16 +223,19 @@ async function saveOptionsToBackend() {
 
 // Função para limpar todos os filtros
 function limparFiltros() {
-  fUnid.value = 'all';
-  fTipo.value = 'all';
-  fStat.value = 'all';
-  fFornecedor.value = '';
-  fValor.value = '';
-  fDataInicio.value = '';
-  fDataFim.value = '';
+  if (fUnid) fUnid.value = 'all';
+  if (fTipo) fTipo.value = 'all';
+  if (fStat) fStat.value = 'all';
+  if (fFornecedor) fFornecedor.value = '';
+  if (fValor) fValor.value = '';
+  if (fDataInicio) fDataInicio.value = '';
+  if (fDataFim) fDataFim.value = '';
   
   // Oculta os cards de resumo quando limpa os filtros de data
-  document.querySelector('.cards-container').classList.add('hidden');
+  const cardsContainer = document.querySelector('.cards-container');
+  if (cardsContainer) {
+    cardsContainer.classList.add('hidden');
+  }
   
   aplicarFiltros();
 }
@@ -222,24 +256,24 @@ function aplicarFiltros() {
     let filteredDespesas = [...allDespesas];
     
     // Filtro por unidade
-    if (fUnid.value !== 'all') {
+    if (fUnid && fUnid.value !== 'all') {
       filteredDespesas = filteredDespesas.filter(d => d.unidade === fUnid.value);
     }
     
     // Filtro por tipo
-    if (fTipo.value !== 'all') {
+    if (fTipo && fTipo.value !== 'all') {
       filteredDespesas = filteredDespesas.filter(d => d.tipo === fTipo.value);
     }
     
     // Filtro por status
-    if (fStat.value !== 'all') {
+    if (fStat && fStat.value !== 'all') {
       filteredDespesas = filteredDespesas.filter(d => 
         (fStat.value === 'p' && d.pago) || (fStat.value === 'np' && !d.pago)
       );
     }
     
     // Filtro por fornecedor (busca parcial)
-    if (fFornecedor.value.trim()) {
+    if (fFornecedor && fFornecedor.value.trim()) {
       const searchTerm = slugify(fFornecedor.value.trim());
       
       // Ordenamos para priorizar correspondências no início do texto
@@ -256,7 +290,7 @@ function aplicarFiltros() {
     }
     
     // Filtro por valor (busca parcial)
-    if (fValor.value.trim()) {
+    if (fValor && fValor.value.trim()) {
       const searchTerm = fValor.value.trim().replace(/\D/g, ''); // Remove não-dígitos
       
       if (searchTerm) {
@@ -269,11 +303,11 @@ function aplicarFiltros() {
     }
     
     // Filtro por data
-    if (fDataInicio.value) {
+    if (fDataInicio && fDataInicio.value) {
       const dataInicio = new Date(fDataInicio.value);
       dataInicio.setHours(0, 0, 0, 0); // Define para início do dia
       
-      if (fDataFim.value) {
+      if (fDataFim && fDataFim.value) {
         // Se tiver data final, filtra o período
         const dataFim = new Date(fDataFim.value);
         dataFim.setHours(23, 59, 59, 999); // Define para fim do dia
@@ -292,7 +326,7 @@ function aplicarFiltros() {
         });
       }
     }
-    else if (fDataFim.value) {
+    else if (fDataFim && fDataFim.value) {
       // Se tiver apenas data final
       const dataFim = new Date(fDataFim.value);
       dataFim.setHours(23, 59, 59, 999); // Define para fim do dia
@@ -314,16 +348,20 @@ function aplicarFiltros() {
 /* monta ?unidade=II&tipo=boleto&status=np  */
 function buildQuery() {
   const p = new URLSearchParams();
-  if (fUnid.value !== 'all') p.append('unidade', fUnid.value);
-  if (fTipo.value !== 'all') p.append('tipo',    fTipo.value);
-  if (fStat.value !== 'all') p.append('status',  fStat.value);   // p | np
+  if (fUnid && fUnid.value !== 'all') p.append('unidade', fUnid.value);
+  if (fTipo && fTipo.value !== 'all') p.append('tipo',    fTipo.value);
+  if (fStat && fStat.value !== 'all') p.append('status',  fStat.value);   // p | np
   return p.toString();
 }
 
 function setupModalEvents() {
   // Fechar todos os modais
   document.querySelectorAll('.modal-close, .btn-cancel').forEach(btn => {
-    btn.addEventListener('click', () => {
+    // Clone para remover event listeners antigos
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+    
+    newBtn.addEventListener('click', () => {
       document.querySelectorAll('.modal-overlay').forEach(modal => {
         modal.classList.remove('active');
       });
@@ -339,20 +377,16 @@ function setupModalEvents() {
     });
   });
   
-  // Handler para salvar nova opção
-  document.getElementById('saveNewOption').addEventListener('click', addNewOption);
-  
-  // Permitir pressionar Enter no campo para salvar
-  document.getElementById('newOptionName').addEventListener('keyup', e => {
-    if (e.key === 'Enter') {
-      addNewOption();
-    }
-  });
-  
   // Função para adicionar nova opção
   function addNewOption() {
-    const modalType = document.getElementById('addOptionModal').getAttribute('data-type');
-    const newName = document.getElementById('newOptionName').value.trim();
+    const addOptionModal = document.getElementById('addOptionModal');
+    if (!addOptionModal) return;
+    
+    const modalType = addOptionModal.getAttribute('data-type');
+    const newOptionName = document.getElementById('newOptionName');
+    if (!newOptionName) return;
+    
+    const newName = newOptionName.value.trim();
     
     if (!newName) {
       alert('Por favor, digite um nome válido');
@@ -375,105 +409,168 @@ function setupModalEvents() {
     saveOptionsToBackend();
     
     // Fecha o modal
-    document.getElementById('addOptionModal').classList.remove('active');
+    addOptionModal.classList.remove('active');
+  }
+  
+  // Handler para salvar nova opção
+  const saveNewOption = document.getElementById('saveNewOption');
+  if (saveNewOption) {
+    const newBtn = saveNewOption.cloneNode(true);
+    saveNewOption.parentNode.replaceChild(newBtn, saveNewOption);
+    newBtn.addEventListener('click', addNewOption);
+  }
+  
+  // Permitir pressionar Enter no campo para salvar
+  const newOptionName = document.getElementById('newOptionName');
+  if (newOptionName) {
+    const newInput = newOptionName.cloneNode(true);
+    newOptionName.parentNode.replaceChild(newInput, newOptionName);
+    newInput.addEventListener('keyup', e => {
+      if (e.key === 'Enter') {
+        addNewOption();
+      }
+    });
   }
   
   // Delegação de eventos para seleção de banco
-  document.querySelector('#bankModal .payment-options').addEventListener('click', e => {
-    const clickedOption = e.target.closest('.payment-option:not(.add-option)');
-    if (clickedOption && !e.target.closest('.btn-remove')) {
-      document.querySelectorAll('#bankModal .payment-option').forEach(o => {
-        o.classList.remove('selected');
-      });
-      clickedOption.classList.add('selected');
-      // Usamos o atributo data-label para pegar o texto exato do banco
-      selectedBank = clickedOption.getAttribute('data-label');
-    }
-  });
+  const bankOptions = document.querySelector('#bankModal .payment-options');
+  if (bankOptions) {
+    bankOptions.addEventListener('click', e => {
+      const clickedOption = e.target.closest('.payment-option:not(.add-option)');
+      if (clickedOption && !e.target.closest('.btn-remove')) {
+        document.querySelectorAll('#bankModal .payment-option').forEach(o => {
+          o.classList.remove('selected');
+        });
+        clickedOption.classList.add('selected');
+        // Usamos o atributo data-label para pegar o texto exato do banco
+        selectedBank = clickedOption.getAttribute('data-label');
+      }
+    });
+  }
   
   // Delegação de eventos para seleção de método
-  document.querySelector('#methodModal .payment-options').addEventListener('click', e => {
-    const clickedOption = e.target.closest('.payment-option:not(.add-option)');
-    if (clickedOption && !e.target.closest('.btn-remove')) {
-      document.querySelectorAll('#methodModal .payment-option').forEach(o => {
-        o.classList.remove('selected');
-      });
-      clickedOption.classList.add('selected');
-      // Usamos o atributo data-label para pegar o texto exato do método
-      selectedMethod = clickedOption.getAttribute('data-label');
-    }
-  });
+  const methodOptions = document.querySelector('#methodModal .payment-options');
+  if (methodOptions) {
+    methodOptions.addEventListener('click', e => {
+      const clickedOption = e.target.closest('.payment-option:not(.add-option)');
+      if (clickedOption && !e.target.closest('.btn-remove')) {
+        document.querySelectorAll('#methodModal .payment-option').forEach(o => {
+          o.classList.remove('selected');
+        });
+        clickedOption.classList.add('selected');
+        // Usamos o atributo data-label para pegar o texto exato do método
+        selectedMethod = clickedOption.getAttribute('data-label');
+      }
+    });
+  }
   
   // Confirmação de banco - passa para próximo modal
-  document.getElementById('confirmBank').addEventListener('click', () => {
-    if (!selectedBank) return alert('Por favor, selecione um banco');
+  const confirmBank = document.getElementById('confirmBank');
+  if (confirmBank) {
+    const newBtn = confirmBank.cloneNode(true);
+    confirmBank.parentNode.replaceChild(newBtn, confirmBank);
     
-    document.getElementById('bankModal').classList.remove('active');
-    document.getElementById('methodModal').classList.add('active');
-  });
+    newBtn.addEventListener('click', () => {
+      if (!selectedBank) {
+        alert('Por favor, selecione um banco');
+        return;
+      }
+      
+      const bankModal = document.getElementById('bankModal');
+      const methodModal = document.getElementById('methodModal');
+      
+      if (bankModal) bankModal.classList.remove('active');
+      if (methodModal) methodModal.classList.add('active');
+    });
+  }
   
   // Confirmação de método - finaliza processo de pagamento
-  document.getElementById('confirmMethod').addEventListener('click', async () => {
-    if (!selectedMethod) return alert('Por favor, selecione um método de pagamento');
-    if (!currentDespesaId) return alert('Erro ao identificar despesa');
+  const confirmMethod = document.getElementById('confirmMethod');
+  if (confirmMethod) {
+    const newBtn = confirmMethod.cloneNode(true);
+    confirmMethod.parentNode.replaceChild(newBtn, confirmMethod);
     
-    try {
-      const paymentData = {
-        banco: selectedBank,
-        metodo: selectedMethod
-      };
+    newBtn.addEventListener('click', async () => {
+      if (!selectedMethod) {
+        alert('Por favor, selecione um método de pagamento');
+        return;
+      }
       
-      console.log('Enviando dados de pagamento:', paymentData);
+      if (!currentDespesaId) {
+        alert('Erro ao identificar despesa');
+        return;
+      }
       
-      const resp = await fetch(`${API}/api/despesas/${currentDespesaId}/pago?valor=true`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(paymentData)
-      });
-      
-      if (!resp.ok) throw new Error(`Erro ${resp.status}`);
-      
-      document.getElementById('methodModal').classList.remove('active');
-      // Limpar seleções
-      currentDespesaId = null;
-      selectedBank = null;
-      selectedMethod = null;
-      
-      // Atualizar tabela
-      render();
-      
-    } catch (err) {
-      console.error('Falha ao processar pagamento:', err);
-      alert('Falha ao processar pagamento – veja o console');
-    }
-  });
+      try {
+        const paymentData = {
+          banco: selectedBank,
+          metodo: selectedMethod
+        };
+        
+        console.log('Enviando dados de pagamento:', paymentData);
+        
+        const resp = await fetch(`${API}/api/despesas/${currentDespesaId}/pago?valor=true`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(paymentData)
+        });
+        
+        if (!resp.ok) throw new Error(`Erro ${resp.status}`);
+        
+        const methodModal = document.getElementById('methodModal');
+        if (methodModal) methodModal.classList.remove('active');
+        
+        // Limpar seleções
+        currentDespesaId = null;
+        selectedBank = null;
+        selectedMethod = null;
+        
+        // Atualizar tabela
+        render();
+        
+      } catch (err) {
+        console.error('Falha ao processar pagamento:', err);
+        alert('Falha ao processar pagamento – veja o console');
+      }
+    });
+  }
   
   // Confirmação de exclusão
-  document.getElementById('confirmDelete').addEventListener('click', async () => {
-    if (!currentDespesaId) return;
+  const confirmDelete = document.getElementById('confirmDelete');
+  if (confirmDelete) {
+    const newBtn = confirmDelete.cloneNode(true);
+    confirmDelete.parentNode.replaceChild(newBtn, confirmDelete);
     
-    try {
-      const resp = await fetch(`${API}/api/despesas/${currentDespesaId}`, {
-        method: 'DELETE'
-      });
+    newBtn.addEventListener('click', async () => {
+      if (!currentDespesaId) return;
       
-      if (!resp.ok) throw new Error(`Erro ${resp.status}`);
-      
-      document.getElementById('deleteModal').classList.remove('active');
-      currentDespesaId = null;
-      
-      // Atualizar tabela
-      render();
-      
-    } catch (err) {
-      console.error(err);
-      alert('Falha ao excluir despesa – veja o console');
-    }
-  });
+      try {
+        const resp = await fetch(`${API}/api/despesas/${currentDespesaId}`, {
+          method: 'DELETE'
+        });
+        
+        if (!resp.ok) throw new Error(`Erro ${resp.status}`);
+        
+        const deleteModal = document.getElementById('deleteModal');
+        if (deleteModal) deleteModal.classList.remove('active');
+        
+        currentDespesaId = null;
+        
+        // Atualizar tabela
+        render();
+        
+      } catch (err) {
+        console.error(err);
+        alert('Falha ao excluir despesa – veja o console');
+      }
+    });
+  }
 }
 
 // Função para renderizar as despesas filtradas
 function renderDespesas(despesas) {
+  if (!tblBody) return;
+  
   tblBody.innerHTML = '';
   
   if (!despesas.length) {
@@ -494,7 +591,7 @@ function renderDespesas(despesas) {
     
     // Verifica se há termos de pesquisa para destacar
     let fornecedorHtml = d.fornecedor;
-    if (fFornecedor.value.trim()) {
+    if (fFornecedor && fFornecedor.value.trim()) {
       const searchTerm = slugify(fFornecedor.value.trim());
       const fornecedorSlug = slugify(d.fornecedor);
       const indexStart = fornecedorSlug.indexOf(searchTerm);
@@ -512,7 +609,7 @@ function renderDespesas(despesas) {
     tr.innerHTML = `
       <td>${dataFmt}</td>
       <td>${fornecedorHtml}</td>
-      <td>${d.tipo}</td>
+      <td class="tipoPagamento">${d.tipo}</td>
       <td>${d.unidade}</td>
       <td class="valor">R$ ${valorFmt}</td>
       <td>${d.banco || '-'}</td>
@@ -529,7 +626,8 @@ function renderDespesas(despesas) {
       if (e.target.checked) {
         // Se estiver marcando como pago, mostra modal de seleção de banco
         currentDespesaId = d.id;
-        document.getElementById('bankModal').classList.add('active');
+        const bankModal = document.getElementById('bankModal');
+        if (bankModal) bankModal.classList.add('active');
       } else {
         // Se estiver desmarcando, apenas atualiza o status
         fetch(
@@ -558,7 +656,8 @@ function renderDespesas(despesas) {
     // Evento para o botão de exclusão
     tr.querySelector('.btn-delete').addEventListener('click', () => {
       currentDespesaId = d.id;
-      document.getElementById('deleteModal').classList.add('active');
+      const deleteModal = document.getElementById('deleteModal');
+      if (deleteModal) deleteModal.classList.add('active');
     });
 
     tblBody.appendChild(tr);
@@ -571,17 +670,17 @@ function atualizarResumo(despesas) {
   
   if (!despesas || !despesas.length) {
     // Se não houver despesas, mostra zeros
-    resumoTotal.textContent = 'R$ 0,00';
-    resumoPago.textContent = 'R$ 0,00';
-    resumoAPagar.textContent = 'R$ 0,00';
+    if (resumoTotal) resumoTotal.textContent = 'R$ 0,00';
+    if (resumoPago) resumoPago.textContent = 'R$ 0,00';
+    if (resumoAPagar) resumoAPagar.textContent = 'R$ 0,00';
     
     // Adiciona classe disabled aos cards
-    cardsContainer.classList.add('disabled');
+    if (cardsContainer) cardsContainer.classList.add('disabled');
     return;
   }
   
   // Remove classe disabled se houver despesas
-  cardsContainer.classList.remove('disabled');
+  if (cardsContainer) cardsContainer.classList.remove('disabled');
   
   // Calcula os valores
   const total = despesas.reduce((sum, d) => sum + Number(d.valor), 0);
@@ -591,9 +690,9 @@ function atualizarResumo(despesas) {
   const aPagar = total - pago;
   
   // Atualiza os elementos na interface
-  resumoTotal.textContent = `R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-  resumoPago.textContent = `R$ ${pago.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-  resumoAPagar.textContent = `R$ ${aPagar.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+  if (resumoTotal) resumoTotal.textContent = `R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+  if (resumoPago) resumoPago.textContent = `R$ ${pago.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+  if (resumoAPagar) resumoAPagar.textContent = `R$ ${aPagar.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
   
   // Adiciona classe para destacar os cards se houver valores
   const cardTotal = document.getElementById('card-total');
@@ -602,29 +701,33 @@ function atualizarResumo(despesas) {
   
   // Limpa classes existentes
   [cardTotal, cardPago, cardAPagar].forEach(card => {
-    card.classList.remove('has-value');
+    if (card) card.classList.remove('has-value');
   });
   
   // Adiciona classes após um pequeno delay para disparar a animação
   setTimeout(() => {
-    if (total > 0) cardTotal.classList.add('has-value');
-    if (pago > 0) cardPago.classList.add('has-value');
-    if (aPagar > 0) cardAPagar.classList.add('has-value');
+    if (total > 0 && cardTotal) cardTotal.classList.add('has-value');
+    if (pago > 0 && cardPago) cardPago.classList.add('has-value');
+    if (aPagar > 0 && cardAPagar) cardAPagar.classList.add('has-value');
   }, 50);
   
   // Atualiza a classe com base na data selecionada
-  if (fDataInicio.value && !fDataFim.value) {
+  if (fDataInicio && fDataInicio.value && (!fDataFim || !fDataFim.value)) {
     // Se tiver apenas data inicial (um dia específico)
     const data = new Date(fDataInicio.value);
     const dataFormatada = data.toLocaleDateString('pt-BR');
-    document.getElementById('card-total').querySelector('h3').textContent = `Total do Dia (${dataFormatada})`;
+    const cardTotalHeading = cardTotal ? cardTotal.querySelector('h3') : null;
+    if (cardTotalHeading) cardTotalHeading.textContent = `Total do Dia (${dataFormatada})`;
   } else {
     // Se for um período ou sem data específica
-    document.getElementById('card-total').querySelector('h3').textContent = 'Total do Período';
+    const cardTotalHeading = cardTotal ? cardTotal.querySelector('h3') : null;
+    if (cardTotalHeading) cardTotalHeading.textContent = 'Total do Período';
   }
 }
 
 function render() {
+  if (!tblBody) return;
+  
   tblBody.innerHTML = '<tr><td colspan="9">Carregando…</td></tr>';
 
   const qs = buildQuery();
@@ -636,25 +739,29 @@ function render() {
       // Armazena todas as despesas em memória para filtragem no cliente
       allDespesas = list;
       
-      // Aplicar filtros (se houver)
-      if (fFornecedor.value.trim() || fValor.value.trim() || fDataInicio.value || fDataFim.value) {
+// Aplicar filtros (se houver)
+      if ((fFornecedor && fFornecedor.value.trim()) || 
+          (fValor && fValor.value.trim()) || 
+          (fDataInicio && fDataInicio.value) || 
+          (fDataFim && fDataFim.value)) {
         aplicarFiltros();
       } else {
         // Se não houver filtros adicionais, mostra todas as despesas
         renderDespesas(list);
         
         // Só mostra cards de resumo se tiver filtro de data
-        if (fDataInicio.value || fDataFim.value) {
+        const cardsContainer = document.querySelector('.cards-container');
+        if ((fDataInicio && fDataInicio.value) || (fDataFim && fDataFim.value)) {
           atualizarResumo(list);
-          document.querySelector('.cards-container').classList.remove('hidden');
+          if (cardsContainer) cardsContainer.classList.remove('hidden');
         } else {
-          document.querySelector('.cards-container').classList.add('hidden');
+          if (cardsContainer) cardsContainer.classList.add('hidden');
         }
       }
     })
     .catch(err => {
       console.error(err);
-      tblBody.innerHTML = '<tr><td colspan="9">Erro ao carregar dados</td></tr>';
+      if (tblBody) tblBody.innerHTML = '<tr><td colspan="9">Erro ao carregar dados</td></tr>';
     });
 }
 

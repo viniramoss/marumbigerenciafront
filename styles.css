@@ -1,8 +1,8 @@
 :root {
-  --bg: #f5f7fa;
+  --bg: #e2e2e2;
   --text: #333;
   --card-bg: #ffffff;
-  --sidebar-bg: #ffffff;
+  --sidebar-bg: #ebebeb;
   --sidebar-text: #222;
   --primary: #0070f3;
   --danger: #dc3545;
@@ -170,7 +170,7 @@ input:checked + .slider:before { transform: translateX(24px); }
 .toolbar select{padding:6px 10px;border:1px solid #444;border-radius:6px;background:var(--card-bg);color:var(--text)}
 
 #tblPag{width:100%;border-collapse:collapse;font-size:.9rem}
-#tblPag th,#tblPag td{border:1px solid rgba(255,255,255,.1);padding:6px 8px;text-align:center}
+#tblPag th,#tblPag td{border:1px solid rgba(129, 110, 84, 0.418);padding:6px 8px;text-align:center}
 #tblPag td.valor{
   text-align:right;
 }
@@ -178,11 +178,15 @@ input:checked + .slider:before { transform: translateX(24px); }
 #tblPag td:first-child,#tblPag th:first-child,
 #tblPag td:nth-child(2),#tblPag th:nth-child(2){text-align:left}
 
-.nao-pago{background:#fff9d1;color:#000}
+.nao-pago{background:#faf5d6;color:#000}
 #tblPag td{
   border:1px solid rgb(156, 144, 75);
 }
 .pago    {background:transparent;color:inherit}
+
+.tipoPagamento {
+  text-transform: uppercase;
+}
 
 /* Botão de exclusão */
 .btn-delete {
@@ -389,20 +393,7 @@ table, th, td, .modal, .payment-option {
   transition: opacity 0.1s ease-out;
 }
 
-/* Evita o "piscar" ao carregar a primeira vez */
-body:not(.dom-loaded) {
-  visibility: hidden;
-}
 
-body.dom-loaded {
-  visibility: visible;
-  animation: fadeIn 0.2s ease-out;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0.8; }
-  to { opacity: 1; }
-}
 
 /* Estilos para os novos filtros */
 .toolbar {
@@ -591,4 +582,71 @@ body.dom-loaded {
   background-color: rgba(0, 112, 243, 0.2);
   padding: 2px;
   border-radius: 3px;
+}
+
+/* Correções para problemas de acesso a campos e travamentos */
+input:focus, select:focus, button:focus {
+  outline: 2px solid var(--primary) !important;
+  z-index: 100 !important;
+  position: relative !important;
+}
+
+/* Evita clicar em elementos durante transições */
+.page-transition * {
+  pointer-events: none !important;
+}
+
+/* Aumenta o tamanho dos elementos clicáveis para facilitar acesso */
+button, .payment-option, select {
+  min-height: 32px;
+  min-width: 32px;
+}
+
+input[type="checkbox"] {
+    min-width: 15px;
+    min-height: 15px;
+}
+
+/* Evita problemas com eventos de clique bloqueados */
+.modal-overlay {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* Ajuda a evitar problemas de renderização */
+.dashboard-card, .card, .chart-wrapper {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Assegura que elementos modais estejam acima de tudo */
+.modal-overlay.active {
+  z-index: 9999 !important;
+}
+
+/* Desabilita transições complexas que podem causar problemas */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Evita o "piscar" ao carregar a primeira vez */
+body:not(.dom-loaded) {
+  visibility: hidden !important;
+}
+
+body.dom-loaded {
+  visibility: visible;
+  animation: fadeIn 0.2s ease-out !important;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0.8; }
+  to { opacity: 1; }
 }

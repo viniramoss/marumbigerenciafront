@@ -12,22 +12,38 @@
 })();
 
 function applyTheme(dark) {
-  // Aplica classe dark no BODY e no HTML
-  document.documentElement.classList.toggle('preload-dark', dark);
-  document.body.classList.toggle('dark', dark);
-
-  // Define a meta tag theme-color para ajustar a cor da UI do sistema
-  let metaThemeColor = document.querySelector('meta[name="theme-color"]');
-  if (!metaThemeColor) {
-    metaThemeColor = document.createElement('meta');
-    metaThemeColor.name = 'theme-color';
-    document.head.appendChild(metaThemeColor);
+  // Verificações de segurança para evitar erros DOM
+  if (!document || !document.documentElement || !document.body) {
+    console.warn('Documento não está pronto para aplicar tema');
+    return;
   }
-  metaThemeColor.content = dark ? '#181a1b' : '#f5f7fa';
 
-  // Atualiza legenda, se existir na página
-  const lbl = document.getElementById('themeLabel');
-  if (lbl) lbl.textContent = dark ? 'Tema Escuro' : 'Tema Claro';
+  try {
+    // Aplica classe dark no BODY e no HTML
+    document.documentElement.classList.toggle('preload-dark', dark);
+    document.body.classList.toggle('dark', dark);
+
+    // Define a meta tag theme-color para ajustar a cor da UI do sistema
+    let metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (!metaThemeColor) {
+      metaThemeColor = document.createElement('meta');
+      metaThemeColor.name = 'theme-color';
+      document.head.appendChild(metaThemeColor);
+    }
+    metaThemeColor.content = dark ? '#181a1b' : '#f5f7fa';
+
+    // Atualiza legenda, se existir na página
+    const lbl = document.getElementById('themeLabel');
+    if (lbl) lbl.textContent = dark ? 'Tema Escuro' : 'Tema Claro';
+    
+    // Força repintar a tela para evitar problemas de renderização
+    document.body.style.opacity = '0.99';
+    setTimeout(() => {
+      document.body.style.opacity = '1';
+    }, 10);
+  } catch (e) {
+    console.error('Erro ao aplicar tema:', e);
+  }
 }
 
 function initTheme() {

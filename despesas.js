@@ -1,4 +1,4 @@
-/* despesas.js – MODIFICADO para marcar despesas do tipo "variavel" como pagas automaticamente */
+/* despesas.js – cadastro de boletos / variáveis (SQLite via Spring) */
 
 const { API_URL } = require('./env-config');
 const API = `${API_URL}/api/despesas`;
@@ -8,84 +8,106 @@ function init() {
   if (ready) return;            // garante 1ª execução
   ready = true;
 
-  const form  = document.getElementById('formDesp');
+  let form = document.getElementById('formDesp');
   const tbody = document.querySelector('#previewDesp tbody');
   const deleteModal = document.getElementById('deleteModal');
   let deleteId = null;
 
+  // Limpa event listeners antigos
+  if (form) {
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
+    form = newForm;
+  }
+
   prefillHoje();
 
-  form.addEventListener('submit', async e => {
-    e.preventDefault();
+  if (form) {
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
 
-    /* preserva opções selecionadas antes de resetar o form */
-    const unidadeSel = form.unidade.value;
-    const tipoSel    = form.tipo.value;
+      /* preserva opções selecionadas antes de resetar o form */
+      const unidadeSel = form.unidade.value;
+      const tipoSel    = form.tipo.value;
 
-    /* monta objeto da despesa */
-    const d = Object.fromEntries(new FormData(form).entries());
-    d.valor = parseFloat(d.valor || 0);
-    
-    // Modificação: Marca como pago automaticamente se for despesa do tipo "variavel"
-    d.pago = d.tipo === 'variavel' ? true : false;
+      /* monta objeto da despesa */
+      const d = Object.fromEntries(new FormData(form).entries());
+      d.valor = parseFloat(d.valor || 0);
+      d.pago  = false;
 
-    /* envia ao back-end */
-    try {
-      const resp = await fetch(API, {
-        method : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body   : JSON.stringify(d)
-      });
-      if (!resp.ok) throw new Error(`Erro ${resp.status}`);
+      /* envia ao back-end */
+      try {
+        const resp = await fetch(API, {
+          method : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body   : JSON.stringify(d)
+        });
+        if (!resp.ok) throw new Error(`Erro ${resp.status}`);
 
-      const saved = await resp.json();
-      addRow(saved);            // insere na tabela preview
+        const saved = await resp.json();
+        addRow(saved);            // insere na tabela preview
 
-      form.reset();             // limpa campos
-      prefillHoje();            // nova data = hoje
-      form.unidade.value = unidadeSel;
-      form.tipo.value    = tipoSel;
-      form.fornecedor.focus();
+        form.reset();             // limpa campos
+        prefillHoje();            // nova data = hoje
+        form.unidade.value = unidadeSel;
+        form.tipo.value    = tipoSel;
+        form.fornecedor.focus();
 
-    } catch (err) {
-      console.error(err);
-      alert('Falha ao salvar despesa – veja o console.');
-    }
-  });
+      } catch (err) {
+        console.error(err);
+        alert('Falha ao salvar despesa – veja o console.');
+      }
+    });
+  }
 
   // Implementação do modal de delete
   document.querySelectorAll('.modal-close, .btn-cancel').forEach(btn => {
-    btn.addEventListener('click', () => {
-      deleteModal.classList.remove('active');
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+    
+    newBtn.addEventListener('click', () => {
+      if (deleteModal) {
+        deleteModal.classList.remove('active');
+      }
     });
   });
 
-  document.getElementById('confirmDelete').addEventListener('click', async () => {
-    if (!deleteId) return;
+  const confirmDelete = document.getElementById('confirmDelete');
+  if (confirmDelete) {
+    const newBtn = confirmDelete.cloneNode(true);
+    confirmDelete.parentNode.replaceChild(newBtn, confirmDelete);
     
-    try {
-      const resp = await fetch(`${API}/${deleteId}`, {
-        method: 'DELETE'
-      });
+    newBtn.addEventListener('click', async () => {
+      if (!deleteId) return;
       
-      if (!resp.ok) throw new Error(`Erro ${resp.status}`);
-      
-      // Remove a linha da tabela após exclusão bem-sucedida
-      const row = document.querySelector(`tr[data-id="${deleteId}"]`);
-      if (row) row.remove();
-      
-      deleteModal.classList.remove('active');
-      deleteId = null;
-    } catch (err) {
-      console.error(err);
-      alert('Falha ao excluir despesa – veja o console.');
-    }
-  });
+      try {
+        const resp = await fetch(`${API}/${deleteId}`, {
+          method: 'DELETE'
+        });
+        
+        if (!resp.ok) throw new Error(`Erro ${resp.status}`);
+        
+        // Remove a linha da tabela após exclusão bem-sucedida
+        const row = document.querySelector(`tr[data-id="${deleteId}"]`);
+        if (row) row.remove();
+        
+        if (deleteModal) {
+          deleteModal.classList.remove('active');
+        }
+        deleteId = null;
+      } catch (err) {
+        console.error(err);
+        alert('Falha ao excluir despesa – veja o console.');
+      }
+    });
+  }
 
   /* ---------- helpers ---------- */
 
   function prefillHoje() {
-    form.data.value = new Date().toISOString().slice(0, 10);
+    if (form && form.data) {
+      form.data.value = new Date().toISOString().slice(0, 10);
+    }
   }
 
   function money(v) {
@@ -94,6 +116,8 @@ function init() {
   }
 
   function addRow(o) {
+    if (!tbody) return;
+    
     const tr = document.createElement('tr');
     tr.setAttribute('data-id', o.id); // Para facilitar remoção após exclusão
     
@@ -112,7 +136,9 @@ function init() {
     // Adiciona evento de exclusão ao botão
     tr.querySelector('.btn-delete').addEventListener('click', () => {
       deleteId = o.id;
-      deleteModal.classList.add('active');
+      if (deleteModal) {
+        deleteModal.classList.add('active');
+      }
     });
     
     tbody.prepend(tr);
