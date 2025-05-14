@@ -12,6 +12,10 @@ function init() {
   const tbody = document.querySelector('#preview tbody');
 
   setHoje();
+    setTimeout(() => {
+    const dataInput = form.querySelector('input[name="data"]');
+    if (dataInput) dataInput.focus();
+  }, 100);
   carregarUltimosLancamentos();
 
   form.addEventListener('submit', async e => {
@@ -53,7 +57,7 @@ function init() {
       // Limpa o formulário e mantém o foco
       form.reset();
       setHoje();
-      form.operador.focus();
+      form.data.focus();
       
     } catch (error) {
       console.error('Erro ao salvar entrada:', error);

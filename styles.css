@@ -585,11 +585,11 @@ table, th, td, .modal, .payment-option {
 }
 
 /* Correções para problemas de acesso a campos e travamentos */
-input:focus, select:focus, button:focus {
+/* input:focus, select:focus, button:focus {
   outline: 2px solid var(--primary) !important;
   z-index: 100 !important;
   position: relative !important;
-}
+} */
 
 /* Evita clicar em elementos durante transições */
 .page-transition * {
@@ -608,18 +608,18 @@ input[type="checkbox"] {
 }
 
 /* Evita problemas com eventos de clique bloqueados */
-.modal-overlay {
+/* .modal-overlay {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   transform: translateZ(0);
-}
+} */
 
 /* Ajuda a evitar problemas de renderização */
-.dashboard-card, .card, .chart-wrapper {
+/* .dashboard-card, .card, .chart-wrapper {
   transform: translateZ(0);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-}
+} */
 
 /* Assegura que elementos modais estejam acima de tudo */
 .modal-overlay.active {
@@ -627,14 +627,14 @@ input[type="checkbox"] {
 }
 
 /* Desabilita transições complexas que podem causar problemas */
-@media (prefers-reduced-motion: reduce) {
+/* @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-}
+} */
 
 /* Evita o "piscar" ao carregar a primeira vez */
 body:not(.dom-loaded) {
