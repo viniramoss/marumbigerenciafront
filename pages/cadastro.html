@@ -61,6 +61,39 @@
   </table>
 </section>
 
+  <!-- Modal de alerta personalizado -->
+  <div id="alertModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="alertTitle">Aviso</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="alertMessage"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="alertOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de confirmação personalizado -->
+  <div id="confirmModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="confirmTitle">Confirmação</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="confirmMessage"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-cancel" id="confirmCancel">Cancelar</button>
+        <button class="btn btn-primary" id="confirmOk">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal de confirmação para exclusão -->
   <div id="deleteModal" class="modal-overlay">
     <div class="modal">

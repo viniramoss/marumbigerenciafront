@@ -3,6 +3,54 @@
 const { API_URL } = require('./env-config');
 let initialized = false;
 let buffer = [];
+// Variáveis para armazenar mês e ano atual
+let currentMonth;
+let currentYear;
+// Referências para os modais
+let alertModal;
+let confirmModal;
+let deleteModal;
+// Callbacks para funções de confirmação
+let confirmCallback = null;
+let deleteCallback = null;
+// Último valor de unidade selecionado
+let lastSelectedUnit = localStorage.getItem('lastSelectedUnit') || 'UN1';
+
+// Função global para atualizar a visualização da data
+function updateDateDisplay() {
+  console.log(`Atualizando display da data: Mês=${currentMonth}, Ano=${currentYear}`);
+  
+  const fixedPart = document.querySelector('.date-fixed-part');
+  if (fixedPart) {
+    // Obter nome do mês usando a lista de meses
+    const meses = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    const mesNome = meses[currentMonth - 1];
+    fixedPart.textContent = `${mesNome}/${currentYear}`;
+  }
+  
+  // Ajusta o dia para o último dia do mês se necessário
+  const dayInput = document.querySelector('.day-input');
+  const hiddenInput = document.querySelector('input[name="data"]');
+  
+  if (dayInput && hiddenInput) {
+    let day = parseInt(dayInput.value);
+    if (!isNaN(day)) {
+      const ultimoDia = new Date(currentYear, currentMonth, 0).getDate();
+      if (day > ultimoDia) {
+        day = ultimoDia;
+        dayInput.value = day;
+      }
+      
+      // Atualiza o campo oculto
+      const paddedDay = day.toString().padStart(2, '0');
+      const paddedMonth = currentMonth.toString().padStart(2, '0');
+      hiddenInput.value = `${currentYear}-${paddedMonth}-${paddedDay}`;
+    }
+  }
+}
 
 function init() {
   if (initialized) return;
@@ -11,12 +59,24 @@ function init() {
   const form = document.getElementById('entryForm');
   const tbody = document.querySelector('#preview tbody');
 
-  setHoje();
-    setTimeout(() => {
-    const dataInput = form.querySelector('input[name="data"]');
-    if (dataInput) dataInput.focus();
-  }, 100);
+  // Inicializa as variáveis de mês e ano atual com os valores salvos ou valores atuais
+  loadSavedDateSettings();
+  
+  // Inicializa os modais
+  initModals();
+  
+  // Substitui o campo date padrão por um campo personalizado
+  customizeDateField();
+
+  // Define a última unidade selecionada se existir
+  if (lastSelectedUnit && form.unidade) {
+    form.unidade.value = lastSelectedUnit;
+  }
+  
   carregarUltimosLancamentos();
+
+  // Adiciona comportamento para a tecla Enter ir para o próximo campo em vez de submeter o form
+  configurarNavegacaoPorTeclado(form);
 
   form.addEventListener('submit', async e => {
     e.preventDefault();
@@ -33,6 +93,10 @@ function init() {
       pix: parseFloat(formData.get('pix') || 0),
       voucher: parseFloat(formData.get('vou') || 0)
     };
+    
+    // Salva a última unidade selecionada
+    localStorage.setItem('lastSelectedUnit', entrada.unidade);
+    lastSelectedUnit = entrada.unidade;
     
     try {
       // Envia para a API
@@ -56,18 +120,240 @@ function init() {
       
       // Limpa o formulário e mantém o foco
       form.reset();
+      
+      // Restaura a unidade previamente selecionada
+      if (form.unidade) {
+        form.unidade.value = lastSelectedUnit;
+      }
+      
+      // Atualiza o campo de data para o dia atual
       setHoje();
-      form.data.focus();
+      
+      // Foca o campo de dia
+      setTimeout(() => {
+        const dayInput = form.querySelector('.day-input');
+        if (dayInput) {
+          dayInput.focus();
+          dayInput.select(); // Seleciona o conteúdo para fácil alteração
+        }
+      }, 50);
       
     } catch (error) {
       console.error('Erro ao salvar entrada:', error);
-      alert('Falha ao salvar entrada - veja o console');
+      showAlert('Erro', 'Falha ao salvar entrada - veja o console para mais detalhes.');
     }
   });
 
+  // Função para carregar configurações de data salvas
+  function loadSavedDateSettings() {
+    try {
+      const savedMonth = localStorage.getItem('currentMonth');
+      const savedYear = localStorage.getItem('currentYear');
+      
+      const today = new Date();
+      
+      // Se existirem valores salvos, use-os; caso contrário, use a data atual
+      currentMonth = savedMonth ? parseInt(savedMonth, 10) : today.getMonth() + 1;
+      currentYear = savedYear ? parseInt(savedYear, 10) : today.getFullYear();
+      
+      console.log(`Valores iniciais carregados: Mês=${currentMonth}, Ano=${currentYear}`);
+      
+      // Salva os valores atuais no localStorage caso não existam
+      if (!savedMonth) {
+        localStorage.setItem('currentMonth', currentMonth);
+      }
+      if (!savedYear) {
+        localStorage.setItem('currentYear', currentYear);
+      }
+      
+      // Atualiza a visualização da data
+      updateDateDisplay();
+    } catch (e) {
+      console.error('Erro ao carregar configurações de data:', e);
+      // Fallback para a data atual em caso de erro
+      const today = new Date();
+      currentMonth = today.getMonth() + 1;
+      currentYear = today.getFullYear();
+      
+      // Salva os valores fallback no localStorage
+      localStorage.setItem('currentMonth', currentMonth);
+      localStorage.setItem('currentYear', currentYear);
+    }
+  }
+
+  // Função para configurar navegação por teclado entre campos
+  function configurarNavegacaoPorTeclado(form) {
+    // Seleciona todos os campos interativos, incluindo input, select e botões, excluindo campos ocultos
+    const inputs = Array.from(form.querySelectorAll('input:not([type="hidden"]), select, button[type="submit"]'));
+    
+    if (inputs.length === 0) return;
+    
+    // Adiciona evento keydown para cada campo
+    inputs.forEach((input, index) => {
+      input.addEventListener('keydown', function(e) {
+        // Se pressionar Enter e não for o botão submit
+        if (e.key === 'Enter' && this.type !== 'submit') {
+          // Impede a submissão do formulário
+          e.preventDefault();
+          
+          // Se for o último campo de entrada, foca no botão de submit
+          if (index === inputs.length - 2) { // -2 porque o último será o botão submit
+            const submitButton = inputs[inputs.length - 1];
+            if (submitButton && submitButton.type === 'submit') {
+              submitButton.focus();
+            }
+          } else if (index < inputs.length - 1) {
+            // Foca no próximo campo
+            inputs[index + 1].focus();
+            
+            // Se for um campo de texto, número ou dia, seleciona o conteúdo
+            if (inputs[index + 1].type === 'text' || 
+                inputs[index + 1].type === 'number' ||
+                inputs[index + 1].classList.contains('day-input')) {
+              inputs[index + 1].select();
+            }
+          }
+        }
+      });
+    });
+    
+    // O botão submit deve submeter o formulário ao pressionar Enter
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) {
+      submitButton.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          form.requestSubmit(); // Submete o formulário programaticamente
+        }
+      });
+    }
+  }
+
+  // Função para personalizar o campo de data
+  function customizeDateField() {
+    const dataInputContainer = form.querySelector('label:first-child');
+    if (!dataInputContainer) return;
+    
+    // Obtém o input date original
+    const originalDateInput = dataInputContainer.querySelector('input[type="date"]');
+    if (!originalDateInput) return;
+    
+    // Cria um novo container para os elementos
+    const newContainer = document.createElement('div');
+    newContainer.className = 'custom-date-container';
+    
+    // Cria um div para mostrar o mês e ano fixos
+    const fixedPart = document.createElement('div');
+    fixedPart.className = 'date-fixed-part';
+    fixedPart.textContent = `${getMesNome(currentMonth)}/${currentYear}`;
+    
+    // Cria um input para o dia
+    const dayInput = document.createElement('input');
+    dayInput.type = 'number';
+    dayInput.min = 1;
+    dayInput.max = 31;
+    dayInput.className = 'day-input';
+    dayInput.placeholder = 'DD';
+    dayInput.value = new Date().getDate();
+    dayInput.required = true;
+    
+    // Campo oculto para manter o valor formatado completo (para envio ao servidor)
+    const hiddenInput = document.createElement('input');
+    hiddenInput.type = 'hidden';
+    hiddenInput.name = 'data';
+    
+    // Adiciona os elementos ao container
+    newContainer.appendChild(fixedPart);
+    newContainer.appendChild(dayInput);
+    
+    // Substitui o input original pelo container personalizado
+    originalDateInput.parentNode.replaceChild(newContainer, originalDateInput);
+    dataInputContainer.appendChild(hiddenInput);
+    
+    // Evento para atualizar o valor oculto quando o dia for alterado
+    dayInput.addEventListener('input', function() {
+      // Limita o valor entre 1 e 31
+      let day = parseInt(this.value);
+      if (isNaN(day) || day < 1) day = 1;
+      if (day > 31) day = 31;
+      this.value = day;
+      
+      // Ajusta pelo último dia do mês atual
+      const ultimoDia = new Date(currentYear, currentMonth, 0).getDate();
+      if (day > ultimoDia) {
+        day = ultimoDia;
+        this.value = day;
+      }
+      
+      // Atualiza o campo oculto com o valor formatado
+      updateHiddenDateValue(day);
+    });
+    
+    // Previne submissão do formulário ao pressionar Enter no campo de dia
+    dayInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        // Move o foco para o próximo campo no formulário
+        const allInputs = Array.from(form.querySelectorAll('input:not([type="hidden"]), select'));
+        const currentIndex = allInputs.indexOf(this);
+        if (currentIndex !== -1 && currentIndex < allInputs.length - 1) {
+          allInputs[currentIndex + 1].focus();
+          if (allInputs[currentIndex + 1].type === 'text' || 
+              allInputs[currentIndex + 1].type === 'number') {
+            allInputs[currentIndex + 1].select();
+          }
+        }
+      }
+    });
+    
+    // Atualiza inicialmente
+    updateHiddenDateValue(dayInput.value);
+    
+    // Foca automaticamente no campo de dia ao iniciar
+    setTimeout(() => {
+      dayInput.focus();
+      dayInput.select(); // Seleciona o valor para fácil edição
+    }, 100);
+    
+    // Função de atualização do valor oculto
+    function updateHiddenDateValue(day) {
+      const paddedDay = day.toString().padStart(2, '0');
+      const paddedMonth = currentMonth.toString().padStart(2, '0');
+      hiddenInput.value = `${currentYear}-${paddedMonth}-${paddedDay}`;
+    }
+  }
+  
+  // Função para obter o nome do mês
+  function getMesNome(mes) {
+    const meses = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    return meses[mes - 1]; // -1 porque os meses são indexados de 0 a 11, mas currentMonth é 1 a 12
+  }
+  
   // Função para definir a data de hoje no formulário
   function setHoje() {
-    form.data.value = new Date().toISOString().slice(0, 10);
+    const today = new Date();
+    const day = today.getDate();
+    
+    // Atualiza o campo de dia
+    const dayInput = form.querySelector('.day-input');
+    if (dayInput) {
+      dayInput.value = day;
+      // Dispara o evento input para atualizar o campo oculto
+      const event = new Event('input');
+      dayInput.dispatchEvent(event);
+      
+      // Foca e seleciona o campo dia após definir o valor
+      setTimeout(() => {
+        dayInput.focus();
+        dayInput.select();
+      }, 10);
+    }
+    
+    // Atualiza a exibição do mês/ano
+    updateDateDisplay();
   }
 
   // Função para formatar valores monetários
@@ -79,7 +365,7 @@ function init() {
   function appendRow(o) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${o.data}</td>
+      <td>${formatarDataBR(o.data)}</td>
       <td>${o.operador}</td>
       <td>${o.unidade}</td>
       <td>${money(o.dinheiro)}</td>
@@ -97,7 +383,9 @@ function init() {
     // Adiciona event listener para o botão de exclusão
     tr.querySelector('.btn-delete').addEventListener('click', async function() {
       const id = this.getAttribute('data-id');
-      if (confirm('Tem certeza que deseja excluir este lançamento?')) {
+      
+      // Usar modal de confirmação personalizado
+      showConfirm('Confirmar exclusão', 'Tem certeza que deseja excluir este lançamento?', async () => {
         try {
           const response = await fetch(`${API_URL}/api/entradas/${id}`, {
             method: 'DELETE'
@@ -117,12 +405,26 @@ function init() {
           
         } catch (error) {
           console.error('Erro ao excluir entrada:', error);
-          alert('Falha ao excluir entrada - veja o console');
+          showAlert('Erro', 'Falha ao excluir entrada - veja o console para mais detalhes.');
         }
-      }
+      });
     });
     
     tbody.prepend(tr);
+  }
+  
+  // Função para converter data do formato ISO para BR
+  function formatarDataBR(data) {
+    if (!data) return '';
+    // Se já estiver no formato DD/MM/AAAA, retorna como está
+    if (data.includes('/')) return data;
+    
+    // Converte de AAAA-MM-DD para DD/MM/AAAA
+    const partes = data.split('-');
+    if (partes.length === 3) {
+      return `${partes[2]}/${partes[1]}/${partes[0]}`;
+    }
+    return data;
   }
   
   // Função para carregar os últimos lançamentos da API
@@ -153,6 +455,172 @@ function init() {
       tbody.innerHTML = '<tr><td colspan="10">Erro ao carregar dados - veja o console</td></tr>';
     }
   }
+  
+  // Inicializa os modais personalizados
+  function initModals() {
+    // Referências aos modais
+    alertModal = document.getElementById('alertModal');
+    confirmModal = document.getElementById('confirmModal');
+    deleteModal = document.getElementById('deleteModal');
+    
+    if (!alertModal || !confirmModal) {
+      console.error('Modais não encontrados no DOM');
+      return;
+    }
+    
+    // Adiciona eventos para fechar os modais
+    document.querySelectorAll('.modal-close, .btn-cancel').forEach(btn => {
+      btn.addEventListener('click', function() {
+        closeAllModals();
+        
+        // Se tiver uma callback de confirmação, chama com false
+        if (this.closest('#confirmModal') && confirmCallback) {
+          confirmCallback(false);
+          confirmCallback = null;
+        }
+      });
+    });
+    
+    // Eventos para botões OK
+    const alertOk = document.getElementById('alertOk');
+    if (alertOk) {
+      alertOk.addEventListener('click', function() {
+        closeModal(alertModal);
+      });
+    }
+    
+    const confirmOk = document.getElementById('confirmOk');
+    if (confirmOk) {
+      confirmOk.addEventListener('click', function() {
+        closeModal(confirmModal);
+        if (confirmCallback) {
+          confirmCallback(true);
+          confirmCallback = null;
+        }
+      });
+    }
+    
+    // Eventos de teclado para os modais
+    document.addEventListener('keydown', function(e) {
+      // ESC fecha os modais
+      if (e.key === 'Escape') {
+        closeAllModals();
+        if (confirmCallback) {
+          confirmCallback(false);
+          confirmCallback = null;
+        }
+      }
+      
+      // ENTER confirma nos modais de alerta/confirmação
+      if (e.key === 'Enter') {
+        if (isModalActive(alertModal)) {
+          e.preventDefault();
+          closeModal(alertModal);
+        } else if (isModalActive(confirmModal)) {
+          e.preventDefault();
+          closeModal(confirmModal);
+          if (confirmCallback) {
+            confirmCallback(true);
+            confirmCallback = null;
+          }
+        }
+      }
+    });
+    
+    // Clicar fora do modal fecha
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
+      modal.addEventListener('click', function(e) {
+        if (e.target === this) {
+          closeModal(this);
+          if (this.id === 'confirmModal' && confirmCallback) {
+            confirmCallback(false);
+            confirmCallback = null;
+          }
+        }
+      });
+    });
+  }
+  
+  // Função para mostrar alerta personalizado
+  function showAlert(title, message) {
+    if (!alertModal) return;
+    
+    const titleEl = document.getElementById('alertTitle');
+    const messageEl = document.getElementById('alertMessage');
+    
+    if (titleEl) titleEl.textContent = title;
+    if (messageEl) messageEl.textContent = message;
+    
+    alertModal.classList.add('active');
+    
+    // Foca no botão OK para permitir Enter
+    const okButton = document.getElementById('alertOk');
+    if (okButton) setTimeout(() => okButton.focus(), 50);
+  }
+  
+  // Função para mostrar confirmação personalizada
+  function showConfirm(title, message, callback) {
+    if (!confirmModal) return;
+    
+    const titleEl = document.getElementById('confirmTitle');
+    const messageEl = document.getElementById('confirmMessage');
+    
+    if (titleEl) titleEl.textContent = title;
+    if (messageEl) messageEl.textContent = message;
+    
+    confirmCallback = callback;
+    confirmModal.classList.add('active');
+    
+    // Foca no botão confirmar para permitir Enter
+    const okButton = document.getElementById('confirmOk');
+    if (okButton) setTimeout(() => okButton.focus(), 50);
+  }
+  
+  // Função para fechar um modal específico
+  function closeModal(modal) {
+    if (modal) modal.classList.remove('active');
+  }
+  
+  // Função para fechar todos os modais
+  function closeAllModals() {
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
+      modal.classList.remove('active');
+    });
+  }
+  
+  // Verificar se um modal está ativo
+  function isModalActive(modal) {
+    return modal && modal.classList.contains('active');
+  }
 }
 
-module.exports.init = init;
+// Exporta as funções necessárias
+module.exports = {
+  init,
+  // Acessores para obter valores atuais
+  getCurrentMonth: () => currentMonth,
+  getCurrentYear: () => currentYear,
+  // Métodos para definir novos valores
+  setCurrentMonth: (month) => { 
+    console.log(`Alterando mês de ${currentMonth} para ${month}`);
+    currentMonth = month; 
+    
+    // Salvar a configuração no localStorage
+    localStorage.setItem('currentMonth', month);
+    
+    // Atualizar a visualização da data
+    updateDateDisplay();
+  },
+  setCurrentYear: (year) => { 
+    console.log(`Alterando ano de ${currentYear} para ${year}`);
+    currentYear = year; 
+    
+    // Salvar a configuração no localStorage
+    localStorage.setItem('currentYear', year);
+    
+    // Atualizar a visualização da data
+    updateDateDisplay();
+  },
+  // Exporta a função de atualização para uso externo
+  updateDateDisplay
+};

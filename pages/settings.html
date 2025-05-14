@@ -25,14 +25,61 @@
 
   <main id="main-content">
     <section class="page visible">
-  <h2>Configurações</h2>
-  <label class="switch">
-    <input type="checkbox" id="themeToggle" />
-    <span class="slider"></span>
-  </label>
-  <span id="themeLabel">Tema Claro</span>
-</section>
-
+      <h2>Configurações</h2>
+      
+      <div class="config-container">
+        <!-- Configuração de Tema -->
+        <div class="config-section">
+          <h3>Tema da Interface</h3>
+          <div class="config-item">
+            <label class="switch">
+              <input type="checkbox" id="themeToggle" />
+              <span class="slider"></span>
+            </label>
+            <span id="themeLabel">Tema Claro</span>
+          </div>
+        </div>
+        
+        <!-- Configuração de Data para Cadastro -->
+        <div class="config-section">
+          <h3>Data para Cadastro de Entradas</h3>
+          <p class="config-description">Configure o mês e ano a serem utilizados no cadastro de entradas.</p>
+          
+          <div class="config-item">
+            <label for="monthSelect">Mês:</label>
+            <select id="monthSelect" class="form-control">
+              <option value="1">Janeiro</option>
+              <option value="2">Fevereiro</option>
+              <option value="3">Março</option>
+              <option value="4">Abril</option>
+              <option value="5">Maio</option>
+              <option value="6">Junho</option>
+              <option value="7">Julho</option>
+              <option value="8">Agosto</option>
+              <option value="9">Setembro</option>
+              <option value="10">Outubro</option>
+              <option value="11">Novembro</option>
+              <option value="12">Dezembro</option>
+            </select>
+          </div>
+          
+          <div class="config-item">
+            <label for="yearInput">Ano:</label>
+            <input type="number" id="yearInput" class="form-control" min="2000" max="2100" />
+          </div>
+          
+          <div class="config-item">
+            <button id="resetDateButton" class="btn btn-secondary">Resetar para Data Atual</button>
+          </div>
+        </div>
+        
+        <!-- Espaço reservado para futuras configurações -->
+        <!-- <div class="config-section">
+          <h3>Outras Configurações</h3>
+          <p class="config-description">Espaço reservado para configurações futuras.</p>
+        </div> -->
+      </div>
+    </section>
   </main>
   <script src="../renderer.js"></script>
 </body>
