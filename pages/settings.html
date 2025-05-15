@@ -15,9 +15,10 @@
   <nav>
     <ul>
       <li><a href="dashboard.html" class="">Dashboard</a></li>
-      <li><a href="cadastro.html"  class="">Entrada</a></li>
-      <li><a href="despesas.html"  class="">Despesas</a></li>
-      <li><a href="relatorio.html" class="">Pagamentos</a></li>
+      <li><a href="cadastro.html"  class="">Lançar Entrada</a></li>
+      <li><a href="despesas.html"  class="">Lançar Despesa</a></li>
+      <li><a href="relatorio.html" class="">Relatório Boletos</a></li>
+      <li><a href="graficos.html"  class="">Gráficos</a></li>
       <li><a href="settings.html"  class="active">Configurações</a></li>
     </ul>
   </nav>
@@ -73,11 +74,20 @@
           </div>
         </div>
         
-        <!-- Espaço reservado para futuras configurações -->
-        <!-- <div class="config-section">
-          <h3>Outras Configurações</h3>
-          <p class="config-description">Espaço reservado para configurações futuras.</p>
-        </div> -->
+        <!-- Configuração de Capital de Giro -->
+        <div class="config-section">
+          <h3>Capital de Giro</h3>
+          <p class="config-description">Configure o valor de capital de giro disponível atualmente.</p>
+          
+          <div class="config-item">
+            <label for="capitalGiroInput">Valor (R$):</label>
+            <input type="number" id="capitalGiroInput" class="form-control" min="0" step="0.01" placeholder="Carregando..." />
+          </div>
+          
+          <div class="config-item">
+            <button id="saveCapitalButton" class="btn btn-primary">Salvar Capital de Giro</button>
+          </div>
+        </div>
       </div>
     </section>
   </main>

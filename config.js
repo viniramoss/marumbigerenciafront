@@ -1,5 +1,8 @@
 /* config.js — agora com tema funcionando corretamente e sem flash */
 
+// Importar a variável API_URL do arquivo de configuração
+const { API_URL } = require('./env-config');
+
 // Script para aplicar tema imediatamente, mesmo antes da renderização do DOM
 (function() {
   // Tenta executar o mais cedo possível
@@ -250,23 +253,116 @@ function loadDateSettings() {
   }
 }
 
-function init() {
-  // Inicializa tema
-  initTheme();
+// Função para inicializar configurações de Capital de Giro
+function initCapitalGiro() {
+  // Verifica se está na página de configurações
+  const capitalInput = document.getElementById('capitalGiroInput');
+  const saveButton = document.getElementById('saveCapitalButton');
   
-  // Inicializa configurações de data (mês/ano)
-  initDateConfig();
+  if (!capitalInput || !saveButton) return; // Não estamos na página de configurações
   
-  // Carrega configurações de data do localStorage
-  loadDateSettings();
+  try {
+    // Primeiro carrega do localStorage para exibir imediatamente
+    const savedCapital = localStorage.getItem('capitalGiro');
+    if (savedCapital) {
+      capitalInput.value = savedCapital;
+      capitalInput.placeholder = savedCapital;
+    }
+    
+    // Depois tenta carregar o valor do backend para atualizar se necessário
+    fetch(`${API_URL}/api/opcoes/capital-giro`)
+      .then(response => response.json())
+      .then(data => {
+        // Se conseguiu carregar do backend, atualiza o campo e o localStorage
+        if (data && data.capitalGiro !== undefined) {
+          capitalInput.value = data.capitalGiro;
+          capitalInput.placeholder = `${data.capitalGiro}`;
+          localStorage.setItem('capitalGiro', data.capitalGiro);
+        } else {
+          // Se não conseguiu, usa o valor do localStorage (já feito acima)
+          // Mantém o que já havia sido definido
+        }
+      })
+      .catch(error => {
+        console.error('Erro ao carregar capital de giro do backend:', error);
+        // Se falhar, já estamos usando o localStorage (definido acima)
+      });
+    
+    // Adiciona event listener para o botão de salvar
+    saveButton.addEventListener('click', function() {
+      const valor = capitalInput.value;
+      
+      // Valida o valor
+      if (!valor || isNaN(parseFloat(valor))) {
+        showFeedback('Por favor, informe um valor válido.');
+        return;
+      }
+      
+      // Salva no localStorage
+      localStorage.setItem('capitalGiro', valor);
+      capitalInput.placeholder = valor;
+      
+      // Tenta salvar no arquivo JSON (backend)
+      try {
+        // Utiliza a API do backend, se disponível
+        fetch(`${API_URL}/api/opcoes/salvar-capital`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ capitalGiro: parseFloat(valor) })
+        })
+        .then(response => {
+          if (response.ok) {
+            showFeedback('Capital de Giro salvo com sucesso!');
+          } else {
+            // Se falhar no backend, pelo menos temos no localStorage
+            showFeedback('Valor salvo localmente. Não foi possível salvar no servidor.');
+          }
+        })
+        .catch(error => {
+          console.error('Erro ao salvar no servidor:', error);
+          showFeedback('Valor salvo localmente. Não foi possível salvar no servidor.');
+        });
+      } catch (e) {
+        console.error('Erro ao salvar capital de giro:', e);
+        showFeedback('Valor salvo localmente apenas.');
+      }
+    });
+  } catch (e) {
+    console.error('Erro ao inicializar configurações de capital de giro:', e);
+    showFeedback('Erro ao carregar configurações. Veja o console para detalhes.');
+  }
 }
 
-// Exporta todas as funções necessárias
-module.exports = { 
+// Função para obter o valor atual de Capital de Giro
+function getCapitalGiro() {
+  const savedCapital = localStorage.getItem('capitalGiro');
+  return savedCapital ? parseFloat(savedCapital) : 0;
+}
+
+function init() {
+  try {
+    // Inicializa configurações de tema
+    initTheme();
+    
+    // Inicializa configurações de data
+    loadDateSettings();
+    initDateConfig();
+    
+    // Inicializa configurações de capital de giro
+    initCapitalGiro();
+
+  } catch (e) {
+    console.error('Erro na inicialização de configurações:', e);
+  }
+}
+
+// Exporta funções para uso em outros módulos
+module.exports = {
   init,
   initTheme,
-  applyTheme,
-  loadDateSettings,
   initDateConfig,
-  showFeedback
+  loadDateSettings,
+  getCapitalGiro
 };

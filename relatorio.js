@@ -113,18 +113,44 @@ function init() {
 // Função para carregar opções do backend
 async function loadOptionsFromBackend() {
   try {
+    // Primeiro carrega do localStorage para ter algo imediatamente
+    const savedBanks = localStorage.getItem('bankOptions');
+    const savedMethods = localStorage.getItem('paymentMethods');
+    
+    if (savedBanks) {
+      try {
+        BANK_OPTIONS = JSON.parse(savedBanks);
+      } catch (e) {
+        console.error('Erro ao processar bancos do localStorage:', e);
+      }
+    }
+    
+    if (savedMethods) {
+      try {
+        PAYMENT_METHODS = JSON.parse(savedMethods);
+      } catch (e) {
+        console.error('Erro ao processar métodos do localStorage:', e);
+      }
+    }
+    
+    // Depois busca do backend para ter os dados mais atualizados
     const resp = await fetch(`${API}/api/opcoes`);
     if (resp.ok) {
       const options = await resp.json();
       if (options.bancos && Array.isArray(options.bancos)) {
         BANK_OPTIONS = options.bancos;
+        // Salva no localStorage para próxima inicialização
+        localStorage.setItem('bankOptions', JSON.stringify(options.bancos));
       }
       if (options.metodos && Array.isArray(options.metodos)) {
         PAYMENT_METHODS = options.metodos;
+        // Salva no localStorage para próxima inicialização
+        localStorage.setItem('paymentMethods', JSON.stringify(options.metodos));
       }
     }
   } catch (err) {
     console.warn('Não foi possível carregar opções personalizadas:', err);
+    // Já estamos usando os dados do localStorage se disponível
   }
   
   // Gerar opções de bancos e métodos dinamicamente
@@ -204,6 +230,11 @@ function generatePaymentOptions(modalId, options) {
 // Função para salvar opções no backend
 async function saveOptionsToBackend() {
   try {
+    // Salva no localStorage primeiro para garantir
+    localStorage.setItem('bankOptions', JSON.stringify(BANK_OPTIONS));
+    localStorage.setItem('paymentMethods', JSON.stringify(PAYMENT_METHODS));
+    
+    // Depois tenta salvar no backend
     const resp = await fetch(`${API}/api/opcoes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -214,7 +245,7 @@ async function saveOptionsToBackend() {
     });
     
     if (!resp.ok) {
-      console.warn('Erro ao salvar opções:', resp.status);
+      console.warn('Erro ao salvar opções no backend:', resp.status);
     }
   } catch (err) {
     console.error('Falha ao salvar opções:', err);

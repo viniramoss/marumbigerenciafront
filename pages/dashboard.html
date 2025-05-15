@@ -15,9 +15,10 @@
   <nav>
     <ul>
       <li><a href="dashboard.html" class="active">Dashboard</a></li>
-      <li><a href="cadastro.html"  class="">Entrada</a></li>
-      <li><a href="despesas.html"  class="">Despesas</a></li>
-      <li><a href="relatorio.html" class="">Pagamentos</a></li>
+      <li><a href="cadastro.html"  class="">Lançar Entrada</a></li>
+      <li><a href="despesas.html"  class="">Lançar Despesa</a></li>
+      <li><a href="relatorio.html" class="">Relatório Boletos</a></li>
+      <li><a href="graficos.html"  class="">Gráficos</a></li>
       <li><a href="settings.html"  class="">Configurações</a></li>
     </ul>
   </nav>
@@ -25,15 +26,18 @@
 
   <main id="main-content">
     <section class="page visible">
-  <div class="grid">
-    <div id="cards"></div>
-    <div class="chart-wrapper">
-      <h2>Evolução Semanal</h2>
-      <canvas id="chart"></canvas>
-    </div>
-  </div>
-</section>
-
+      <h2>Resumo Financeiro</h2>
+      <div class="dashboard-container">
+        <div class="dashboard-cards">
+          <div id="card-fluxo" class="dashboard-card">
+            <!-- Card 1: Dinheiro Total, Despesas Pagas, Fluxo de Caixa -->
+          </div>
+          <div id="card-faturamento" class="dashboard-card">
+            <!-- Card 2: Faturamento Mensal e Despesa Mensal -->
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
   <script src="../renderer.js"></script>
 </body>

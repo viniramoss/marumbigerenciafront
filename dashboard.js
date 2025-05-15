@@ -6,6 +6,7 @@ const path = require('path');
 const os = require('os');
 const { Chart, registerables } = require('chart.js');
 const { API_URL } = require('./env-config');
+const config = require('./config');
 
 // Inicializa Chart.js
 Chart.register(...registerables);
@@ -96,7 +97,7 @@ function findXlsx() {
 
 /* ----- Funções para buscar dados da API ----- */
 
-// Função para buscar despesas do mês atual
+// Função para buscar todas as despesas do mês atual (total)
 async function getMonthlyExpenses() {
   try {
     // Busca todas as despesas
@@ -132,6 +133,103 @@ async function getMonthlyExpenses() {
   }
 }
 
+// Função para buscar despesas do mês atual filtradas por unidade
+async function getMonthlyExpensesByUnit() {
+  try {
+    // Busca todas as despesas
+    const response = await fetch(`${API_URL}/api/despesas`);
+    if (!response.ok) {
+      console.error(`Erro ao buscar despesas: ${response.status}`);
+      return { UN1: 0, UN2: 0 };
+    }
+    
+    const despesas = await response.json();
+    
+    // Filtra pelo mês atual
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    const monthlyDespesas = despesas.filter(despesa => {
+      if (!despesa || !despesa.data) return false;
+      
+      const despesaDate = new Date(despesa.data + 'T00:00');
+      return despesaDate.getMonth() === currentMonth && 
+             despesaDate.getFullYear() === currentYear;
+    });
+    
+    // Agrupa por unidade
+    const result = { UN1: 0, UN2: 0 };
+    
+    monthlyDespesas.forEach(despesa => {
+      if (despesa.unidade === 'UN1') {
+        result.UN1 += Number(despesa.valor || 0);
+      } else if (despesa.unidade === 'UN2') {
+        result.UN2 += Number(despesa.valor || 0);
+      }
+    });
+    
+    return result;
+    
+  } catch (error) {
+    console.error('Erro ao buscar despesas mensais por unidade:', error);
+    return { UN1: 0, UN2: 0 };
+  }
+}
+
+// Função para buscar apenas as despesas pagas do mês atual
+async function getMonthlyPaidExpenses() {
+  try {
+    // Busca todas as despesas
+    const response = await fetch(`${API_URL}/api/despesas`);
+    if (!response.ok) {
+      console.error(`Erro ao buscar despesas: ${response.status}`);
+      return 0;
+    }
+    
+    const despesas = await response.json();
+    console.log('Todas as despesas:', despesas); // Log para debug
+    
+    // Filtra pelo mês atual e pelas despesas pagas (campo pago = true)
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    const monthlyDespesas = despesas.filter(despesa => {
+      if (!despesa || !despesa.data) return false;
+      
+      // Verifica a data
+      const despesaDate = new Date(despesa.data + 'T00:00');
+      const isCurrentMonth = despesaDate.getMonth() === currentMonth && 
+                             despesaDate.getFullYear() === currentYear;
+      
+      // Verifica se a despesa está paga (campo pago = true)
+      const isPaid = despesa.pago === true || despesa.pago === "true";
+      
+      // Para debug
+      if (isCurrentMonth) {
+        console.log(`Despesa: ${despesa.fornecedor}, Data: ${despesa.data}, Pago: ${despesa.pago}, É paga: ${isPaid}`);
+      }
+      
+      return isCurrentMonth && isPaid;
+    });
+    
+    console.log('Despesas pagas do mês atual:', monthlyDespesas);
+    
+    // Soma todos os valores
+    const total = monthlyDespesas.reduce((total, despesa) => {
+      return total + Number(despesa.valor || 0);
+    }, 0);
+    
+    console.log('Total de despesas pagas:', total);
+    return total;
+    
+  } catch (error) {
+    console.error('Erro ao buscar despesas mensais pagas:', error);
+    return 0;
+  }
+}
+
 // Função para buscar estatísticas de entrada do mês atual
 async function getMonthlyRevenue() {
   try {
@@ -148,6 +246,49 @@ async function getMonthlyRevenue() {
     console.error('Erro ao buscar estatísticas de entradas:', error);
     // Se não conseguir buscar da API, tenta outro método
     return getMonthlyRevenueAlternative();
+  }
+}
+
+// Função para buscar entradas do mês atual filtradas por unidade
+async function getMonthlyRevenueByUnit() {
+  try {
+    // Obtém o primeiro e último dia do mês atual
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    
+    // Busca todas as entradas
+    const response = await fetch(`${API_URL}/api/entradas`);
+    if (!response.ok) {
+      throw new Error(`Erro ao buscar entradas: ${response.status}`);
+    }
+    
+    const entradas = await response.json();
+    
+    // Filtra por mês atual
+    const monthlyEntradas = entradas.filter(entrada => {
+      if (!entrada || !entrada.data) return false;
+      
+      const entradaDate = new Date(entrada.data + 'T00:00');
+      return entradaDate >= firstDay && entradaDate <= lastDay;
+    });
+    
+    // Agrupa por unidade
+    const result = { UN1: 0, UN2: 0 };
+    
+    monthlyEntradas.forEach(entrada => {
+      if (entrada.unidade === 'UN1') {
+        result.UN1 += Number(entrada.total || 0);
+      } else if (entrada.unidade === 'UN2') {
+        result.UN2 += Number(entrada.total || 0);
+      }
+    });
+    
+    return result;
+    
+  } catch (error) {
+    console.error('Erro ao buscar faturamento mensal por unidade:', error);
+    return { UN1: 0, UN2: 0 };
   }
 }
 
@@ -285,18 +426,71 @@ function getFaturamentoFromExcel() {
 
 /* ----- Funções de renderização ----- */
 
-// Renderiza os cards com valores formatados
-function renderCards(rec, desp) {
-  const diff = rec - desp;
-  document.getElementById('cards').innerHTML = `
-    <div class="card"><h2>FATURAMENTO MENSAL</h2><p>R$ ${rec.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p></div>
-    <div class="card"><h2>DESPESA MENSAL</h2><p>R$ ${desp.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p></div>
-    <div class="card"><h2>DIFERENÇA</h2><p>R$ ${diff.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p></div>`;
+// Renderiza o card de fluxo de caixa
+function renderFluxoCard(faturamentoMensal, despesasPagas) {
+  // Calcula o dinheiro total como faturamento + capital de giro
+  const capitalGiro = config.getCapitalGiro();
+  const dinheiroTotal = faturamentoMensal + capitalGiro;
+  const fluxoCaixa = dinheiroTotal - despesasPagas;
+  
+  document.getElementById('card-fluxo').innerHTML = `
+    <h3>FLUXO DE CAIXA</h3>
+    <div class="card-value-row">
+      <div class="card-label">Dinheiro Total:</div>
+      <div class="card-value">R$ ${dinheiroTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+    </div>
+    <div class="card-value-row">
+      <div class="card-label">Despesas Pagas:</div>
+      <div class="card-value">R$ ${despesasPagas.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+    </div>
+    <div class="card-value-row total">
+      <div class="card-label">Fluxo de Caixa:</div>
+      <div class="card-value">R$ ${fluxoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+    </div>`;
 }
 
-// Renderiza o gráfico com os dados semanais
-function renderChart(weekly) {
-  const ctx = document.getElementById('chart').getContext('2d');
+// Renderiza o card de faturamento e despesas
+function renderFaturamentoCard(faturamentoMensal, despesasMensais, faturamentoPorUnidade, despesasPorUnidade) {
+  // Calcula os totais
+  const faturamentoUN1 = faturamentoPorUnidade?.UN1 || 0;
+  const faturamentoUN2 = faturamentoPorUnidade?.UN2 || 0;
+  const despesasUN1 = despesasPorUnidade?.UN1 || 0;
+  const despesasUN2 = despesasPorUnidade?.UN2 || 0;
+  const totalFaturamento = faturamentoUN1 + faturamentoUN2;
+  const totalDespesas = despesasUN1 + despesasUN2;
+  const diferenca = totalFaturamento - totalDespesas;
+  
+  document.getElementById('card-faturamento').innerHTML = `
+    <h3>RESUMO MENSAL</h3>
+    <div class="card-value-row">
+      <div class="card-label">Faturamento Mensal M1:</div>
+      <div class="card-value">R$ ${faturamentoUN1.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+    </div>
+    <div class="card-value-row">
+      <div class="card-label">Faturamento Mensal M2:</div>
+      <div class="card-value">R$ ${faturamentoUN2.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+    </div>
+    <div class="card-value-row">
+      <div class="card-label">Despesa Mensal M1:</div>
+      <div class="card-value">R$ ${despesasUN1.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+    </div>
+    <div class="card-value-row">
+      <div class="card-label">Despesa Mensal M2:</div>
+      <div class="card-value">R$ ${despesasUN2.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+    </div>
+    <div class="card-value-row total">
+      <div class="card-label">Total:</div>
+      <div class="card-value">R$ ${diferenca.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+    </div>`;
+}
+
+// Renderiza o gráfico na página de gráficos
+function renderWeeklyChart(weekly) {
+  // Verifica se estamos na página de gráficos
+  const chartCanvas = document.getElementById('weekly-revenue-chart');
+  if (!chartCanvas) return;
+  
+  const ctx = chartCanvas.getContext('2d');
   if (chart) chart.destroy();
   
   const weeks = Object.keys(weekly).map(Number).sort((a, b) => a - b);
@@ -309,12 +503,15 @@ function renderChart(weekly) {
         data: weeks.map(w => weekly[w]),
         tension: 0.35,
         borderWidth: 3,
-        pointRadius: 4
+        pointRadius: 4,
+        backgroundColor: 'rgba(0, 112, 243, 0.1)',
+        borderColor: 'rgba(0, 112, 243, 0.8)'
       }]
     },
     options: {
-      interaction: {mode: 'nearest', intersect: false},
+      responsive: true,
       maintainAspectRatio: false,
+      interaction: {mode: 'nearest', intersect: false},
       plugins: {
         legend: {display: false},
         tooltip: {
@@ -337,33 +534,66 @@ function renderChart(weekly) {
 
 // Inicializa a página
 async function init() {
-  // Mostra um indicador de carregamento
-  document.getElementById('cards').innerHTML = `
-    <div class="card loading"><h2>FATURAMENTO MENSAL</h2><p>Carregando...</p></div>
-    <div class="card loading"><h2>DESPESA MENSAL</h2><p>Carregando...</p></div>
-    <div class="card loading"><h2>DIFERENÇA</h2><p>Carregando...</p></div>`;
+  // Verifica qual página está sendo exibida
+  const currentPage = window.location.pathname.split('/').pop().replace('.html', '');
   
-  try {
-    // Busca as despesas e receitas do mês atual da API
-    const [monthlyExpenses, monthlyRevenue, weeklyData] = await Promise.all([
-      getMonthlyExpenses(),
-      getMonthlyRevenue(),
-      getWeeklyRevenue()
-    ]);
+  if (currentPage === 'dashboard') {
+    // Estamos na dashboard - mostrar cards
     
-    console.log('Dados carregados:');
-    console.log('- Despesas mensais:', monthlyExpenses);
-    console.log('- Receitas mensais:', monthlyRevenue);
-    console.log('- Dados semanais:', weeklyData);
+    // Mostra um indicador de carregamento
+    document.getElementById('card-fluxo').innerHTML = `
+      <h3>FLUXO DE CAIXA</h3>
+      <div class="loading-indicator">Carregando dados...</div>`;
     
-    // Renderiza os cards e o gráfico
-    renderCards(monthlyRevenue, monthlyExpenses);
-    renderChart(weeklyData);
+    document.getElementById('card-faturamento').innerHTML = `
+      <h3>RESUMO MENSAL</h3>
+      <div class="loading-indicator">Carregando dados...</div>`;
     
-  } catch (error) {
-    console.error('Erro ao carregar dados:', error);
-    renderCards(0, 0);
-    renderChart({});
+    try {
+      // Busca os dados da API
+      const [
+        despesasPagas, 
+        despesasMensais, 
+        faturamentoMensal, 
+        faturamentoPorUnidade, 
+        despesasPorUnidade
+      ] = await Promise.all([
+        getMonthlyPaidExpenses(),
+        getMonthlyExpenses(),
+        getMonthlyRevenue(),
+        getMonthlyRevenueByUnit(),
+        getMonthlyExpensesByUnit()
+      ]);
+      
+      console.log('Dados carregados:');
+      console.log('- Despesas pagas:', despesasPagas);
+      console.log('- Despesas mensais:', despesasMensais);
+      console.log('- Faturamento mensal:', faturamentoMensal);
+      console.log('- Faturamento por unidade:', faturamentoPorUnidade);
+      console.log('- Despesas por unidade:', despesasPorUnidade);
+      
+      // Renderiza os cards
+      renderFluxoCard(faturamentoMensal, despesasPagas);
+      renderFaturamentoCard(faturamentoMensal, despesasMensais, faturamentoPorUnidade, despesasPorUnidade);
+      
+    } catch (error) {
+      console.error('Erro ao carregar dados para dashboard:', error);
+      renderFluxoCard(0, 0);
+      renderFaturamentoCard(0, 0, { UN1: 0, UN2: 0 }, { UN1: 0, UN2: 0 });
+    }
+  } 
+  else if (currentPage === 'graficos') {
+    // Estamos na página de gráficos
+    try {
+      // Busca os dados semanais
+      const weeklyData = await getWeeklyRevenue();
+      
+      // Renderiza o gráfico
+      renderWeeklyChart(weeklyData);
+      
+    } catch (error) {
+      console.error('Erro ao carregar dados para gráficos:', error);
+    }
   }
 }
 
