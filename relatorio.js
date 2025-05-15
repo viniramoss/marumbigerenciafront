@@ -113,44 +113,20 @@ function init() {
 // Função para carregar opções do backend
 async function loadOptionsFromBackend() {
   try {
-    // Primeiro carrega do localStorage para ter algo imediatamente
-    const savedBanks = localStorage.getItem('bankOptions');
-    const savedMethods = localStorage.getItem('paymentMethods');
+    // Mostrar indicador de carregamento
+    generatePaymentOptions('bankModal', [{ id: 'loading', label: 'Carregando...' }]);
+    generatePaymentOptions('methodModal', [{ id: 'loading', label: 'Carregando...' }]);
     
-    if (savedBanks) {
-      try {
-        BANK_OPTIONS = JSON.parse(savedBanks);
-      } catch (e) {
-        console.error('Erro ao processar bancos do localStorage:', e);
-      }
+    const resp = await fetchWithRetry(`${API}/api/opcoes`);
+    const options = await resp.json();
+    if (options.bancos && Array.isArray(options.bancos)) {
+      BANK_OPTIONS = options.bancos;
     }
-    
-    if (savedMethods) {
-      try {
-        PAYMENT_METHODS = JSON.parse(savedMethods);
-      } catch (e) {
-        console.error('Erro ao processar métodos do localStorage:', e);
-      }
-    }
-    
-    // Depois busca do backend para ter os dados mais atualizados
-    const resp = await fetch(`${API}/api/opcoes`);
-    if (resp.ok) {
-      const options = await resp.json();
-      if (options.bancos && Array.isArray(options.bancos)) {
-        BANK_OPTIONS = options.bancos;
-        // Salva no localStorage para próxima inicialização
-        localStorage.setItem('bankOptions', JSON.stringify(options.bancos));
-      }
-      if (options.metodos && Array.isArray(options.metodos)) {
-        PAYMENT_METHODS = options.metodos;
-        // Salva no localStorage para próxima inicialização
-        localStorage.setItem('paymentMethods', JSON.stringify(options.metodos));
-      }
+    if (options.metodos && Array.isArray(options.metodos)) {
+      PAYMENT_METHODS = options.metodos;
     }
   } catch (err) {
     console.warn('Não foi possível carregar opções personalizadas:', err);
-    // Já estamos usando os dados do localStorage se disponível
   }
   
   // Gerar opções de bancos e métodos dinamicamente
@@ -188,8 +164,6 @@ function generatePaymentOptions(modalId, options) {
         const index = optionsList.findIndex(o => o.id === option.id);
         if (index !== -1) {
           optionsList.splice(index, 1);
-          // Salva as alterações no backend
-          saveOptionsToBackend();
           // Regenera as opções
           generatePaymentOptions(modalId, optionsList);
         }
@@ -230,12 +204,8 @@ function generatePaymentOptions(modalId, options) {
 // Função para salvar opções no backend
 async function saveOptionsToBackend() {
   try {
-    // Salva no localStorage primeiro para garantir
-    localStorage.setItem('bankOptions', JSON.stringify(BANK_OPTIONS));
-    localStorage.setItem('paymentMethods', JSON.stringify(PAYMENT_METHODS));
-    
-    // Depois tenta salvar no backend
-    const resp = await fetch(`${API}/api/opcoes`, {
+    // Salvar no backend
+    const resp = await fetchWithRetry(`${API}/api/opcoes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -246,9 +216,11 @@ async function saveOptionsToBackend() {
     
     if (!resp.ok) {
       console.warn('Erro ao salvar opções no backend:', resp.status);
+      throw new Error('Falha ao salvar opções no backend');
     }
   } catch (err) {
     console.error('Falha ao salvar opções:', err);
+    showFeedback('Erro ao salvar opções. Verifique a conexão.');
   }
 }
 
@@ -540,7 +512,7 @@ function setupModalEvents() {
         
         console.log('Enviando dados de pagamento:', paymentData);
         
-        const resp = await fetch(`${API}/api/despesas/${currentDespesaId}/pago?valor=true`, {
+        const resp = await fetchWithRetry(`${API}/api/despesas/${currentDespesaId}/pago?valor=true`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(paymentData)
@@ -576,7 +548,7 @@ function setupModalEvents() {
       if (!currentDespesaId) return;
       
       try {
-        const resp = await fetch(`${API}/api/despesas/${currentDespesaId}`, {
+        const resp = await fetchWithRetry(`${API}/api/despesas/${currentDespesaId}`, {
           method: 'DELETE'
         });
         
@@ -661,14 +633,7 @@ function renderDespesas(despesas) {
         if (bankModal) bankModal.classList.add('active');
       } else {
         // Se estiver desmarcando, apenas atualiza o status
-        fetch(
-          `${API}/api/despesas/${d.id}/pago?valor=false`,
-          { 
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({})
-          }
-        )
+                fetchWithRetry(          `${API}/api/despesas/${d.id}/pago?valor=false`,          {             method: 'PUT',            headers: { 'Content-Type': 'application/json' },            body: JSON.stringify({})          }        )
         .then(response => {
           if (!response.ok) {
             throw new Error(`Erro ${response.status}`);
@@ -764,13 +729,13 @@ function render() {
   const qs = buildQuery();
   const url = `${API}/api/despesas${qs ? '?' + qs : ''}`;
 
-  fetch(url)
+  fetchWithRetry(url)
     .then(r => r.json())
     .then(list => {
       // Armazena todas as despesas em memória para filtragem no cliente
       allDespesas = list;
       
-// Aplicar filtros (se houver)
+      // Aplicar filtros (se houver)
       if ((fFornecedor && fFornecedor.value.trim()) || 
           (fValor && fValor.value.trim()) || 
           (fDataInicio && fDataInicio.value) || 
@@ -794,6 +759,22 @@ function render() {
       console.error(err);
       if (tblBody) tblBody.innerHTML = '<tr><td colspan="9">Erro ao carregar dados</td></tr>';
     });
+}
+
+// Helper function to retry API calls
+async function fetchWithRetry(url, options = {}, retries = 3, delay = 1000) {
+  try {
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    return response;
+  } catch (error) {
+    if (retries <= 1) throw error;
+    console.warn(`Retrying fetch to ${url}. Attempts left: ${retries-1}`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+    return fetchWithRetry(url, options, retries - 1, delay);
+  }
 }
 
 module.exports.init = init;

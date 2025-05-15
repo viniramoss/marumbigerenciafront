@@ -95,18 +95,29 @@ function findXlsx() {
   return null;
 }
 
-/* ----- Funções para buscar dados da API ----- */
+/* ----- Funções para buscar dados da API com retry ----- */
+
+// Helper function to retry API calls
+async function fetchWithRetry(url, options = {}, retries = 3, delay = 500) {
+  try {
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    return response;
+  } catch (error) {
+    if (retries <= 1) throw error;
+    console.warn(`Retrying fetch to ${url}. Attempts left: ${retries-1}`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+    return fetchWithRetry(url, options, retries - 1, delay * 1.5);
+  }
+}
 
 // Função para buscar todas as despesas do mês atual (total)
 async function getMonthlyExpenses() {
   try {
     // Busca todas as despesas
-    const response = await fetch(`${API_URL}/api/despesas`);
-    if (!response.ok) {
-      console.error(`Erro ao buscar despesas: ${response.status}`);
-      return 0;
-    }
-    
+    const response = await fetchWithRetry(`${API_URL}/api/despesas`);
     const despesas = await response.json();
     
     // Filtra pelo mês atual
@@ -137,11 +148,7 @@ async function getMonthlyExpenses() {
 async function getMonthlyExpensesByUnit() {
   try {
     // Busca todas as despesas
-    const response = await fetch(`${API_URL}/api/despesas`);
-    if (!response.ok) {
-      console.error(`Erro ao buscar despesas: ${response.status}`);
-      return { UN1: 0, UN2: 0 };
-    }
+    const response = await fetchWithRetry(`${API_URL}/api/despesas`);
     
     const despesas = await response.json();
     
@@ -181,48 +188,35 @@ async function getMonthlyExpensesByUnit() {
 async function getMonthlyPaidExpenses() {
   try {
     // Busca todas as despesas
-    const response = await fetch(`${API_URL}/api/despesas`);
-    if (!response.ok) {
-      console.error(`Erro ao buscar despesas: ${response.status}`);
-      return 0;
-    }
-    
+    const response = await fetchWithRetry(`${API_URL}/api/despesas`);
     const despesas = await response.json();
-    console.log('Todas as despesas:', despesas); // Log para debug
     
     // Filtra pelo mês atual e pelas despesas pagas (campo pago = true)
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
     
-    const monthlyDespesas = despesas.filter(despesa => {
-      if (!despesa || !despesa.data) return false;
+    // Filtra em uma única passagem para melhor performance
+    const monthlyPaidDespesas = despesas.reduce((total, despesa) => {
+      if (!despesa || !despesa.data) return total;
       
       // Verifica a data
       const despesaDate = new Date(despesa.data + 'T00:00');
       const isCurrentMonth = despesaDate.getMonth() === currentMonth && 
-                             despesaDate.getFullYear() === currentYear;
+                           despesaDate.getFullYear() === currentYear;
       
       // Verifica se a despesa está paga (campo pago = true)
       const isPaid = despesa.pago === true || despesa.pago === "true";
       
-      // Para debug
-      if (isCurrentMonth) {
-        console.log(`Despesa: ${despesa.fornecedor}, Data: ${despesa.data}, Pago: ${despesa.pago}, É paga: ${isPaid}`);
+      // Se é do mês atual e está paga, soma ao total
+      if (isCurrentMonth && isPaid) {
+        return total + Number(despesa.valor || 0);
       }
       
-      return isCurrentMonth && isPaid;
-    });
-    
-    console.log('Despesas pagas do mês atual:', monthlyDespesas);
-    
-    // Soma todos os valores
-    const total = monthlyDespesas.reduce((total, despesa) => {
-      return total + Number(despesa.valor || 0);
+      return total;
     }, 0);
     
-    console.log('Total de despesas pagas:', total);
-    return total;
+    return monthlyPaidDespesas;
     
   } catch (error) {
     console.error('Erro ao buscar despesas mensais pagas:', error);
@@ -233,13 +227,7 @@ async function getMonthlyPaidExpenses() {
 // Função para buscar estatísticas de entrada do mês atual
 async function getMonthlyRevenue() {
   try {
-    const response = await fetch(`${API_URL}/api/entradas/estatisticas/mes-atual`);
-    if (!response.ok) {
-      console.error(`Erro ao buscar estatísticas de entradas: ${response.status}`);
-      // Se não conseguir buscar da API, tenta outro método
-      return getMonthlyRevenueAlternative();
-    }
-    
+    const response = await fetchWithRetry(`${API_URL}/api/entradas/estatisticas/mes-atual`);
     const stats = await response.json();
     return Number(stats.totalGeral || 0);
   } catch (error) {
@@ -257,26 +245,21 @@ async function getMonthlyRevenueByUnit() {
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     
-    // Busca todas as entradas
-    const response = await fetch(`${API_URL}/api/entradas`);
-    if (!response.ok) {
-      throw new Error(`Erro ao buscar entradas: ${response.status}`);
-    }
+    const firstDayStr = firstDay.toISOString().split('T')[0];
+    const lastDayStr = lastDay.toISOString().split('T')[0];
     
+    // Busca todas as entradas do mês atual diretamente com filtro de data
+    const response = await fetchWithRetry(
+      `${API_URL}/api/entradas?dataInicio=${firstDayStr}&dataFim=${lastDayStr}`
+    );
     const entradas = await response.json();
     
-    // Filtra por mês atual
-    const monthlyEntradas = entradas.filter(entrada => {
-      if (!entrada || !entrada.data) return false;
-      
-      const entradaDate = new Date(entrada.data + 'T00:00');
-      return entradaDate >= firstDay && entradaDate <= lastDay;
-    });
+    console.log(`Entradas encontradas para faturamento por unidade: ${entradas.length}`);
     
     // Agrupa por unidade
     const result = { UN1: 0, UN2: 0 };
     
-    monthlyEntradas.forEach(entrada => {
+    entradas.forEach(entrada => {
       if (entrada.unidade === 'UN1') {
         result.UN1 += Number(entrada.total || 0);
       } else if (entrada.unidade === 'UN2') {
@@ -284,6 +267,7 @@ async function getMonthlyRevenueByUnit() {
       }
     });
     
+    console.log('Faturamento por unidade calculado:', result);
     return result;
     
   } catch (error) {
@@ -301,11 +285,7 @@ async function getMonthlyRevenueAlternative() {
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     
     // Busca todas as entradas
-    const response = await fetch(`${API_URL}/api/entradas`);
-    if (!response.ok) {
-      throw new Error(`Erro ao buscar entradas: ${response.status}`);
-    }
-    
+    const response = await fetchWithRetry(`${API_URL}/api/entradas`);
     const entradas = await response.json();
     
     // Filtra por mês atual e soma
@@ -338,13 +318,12 @@ async function getWeeklyRevenue() {
     const firstDayStr = firstDay.toISOString().split('T')[0];
     const lastDayStr = lastDay.toISOString().split('T')[0];
     
-    // Busca as entradas do mês atual
-    const response = await fetch(`${API_URL}/api/entradas?dataInicio=${firstDayStr}&dataFim=${lastDayStr}`);
-    if (!response.ok) {
-      throw new Error(`Erro ao buscar entradas: ${response.status}`);
-    }
+    console.log('Buscando dados semanais do período:', firstDayStr, 'até', lastDayStr);
     
+    // Busca as entradas do mês atual
+    const response = await fetchWithRetry(`${API_URL}/api/entradas?dataInicio=${firstDayStr}&dataFim=${lastDayStr}`);
     const entradas = await response.json();
+    console.log('Entradas retornadas da API:', entradas.length);
     
     // Agrupa por semana
     const weeklyData = {};
@@ -356,6 +335,7 @@ async function getWeeklyRevenue() {
       weeklyData[week] = (weeklyData[week] || 0) + Number(entrada.total || 0);
     });
     
+    console.log('Dados semanais processados:', weeklyData);
     return weeklyData;
   } catch (error) {
     console.error('Erro ao buscar dados semanais:', error);
@@ -427,36 +407,60 @@ function getFaturamentoFromExcel() {
 /* ----- Funções de renderização ----- */
 
 // Renderiza o card de fluxo de caixa
-function renderFluxoCard(faturamentoMensal, despesasPagas) {
-  // Calcula o dinheiro total como faturamento + capital de giro
-  const capitalGiro = config.getCapitalGiro();
-  const dinheiroTotal = faturamentoMensal + capitalGiro;
-  const fluxoCaixa = dinheiroTotal - despesasPagas;
-  
-  document.getElementById('card-fluxo').innerHTML = `
-    <h3>FLUXO DE CAIXA</h3>
-    <div class="card-value-row">
-      <div class="card-label">Dinheiro Total:</div>
-      <div class="card-value">R$ ${dinheiroTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
-    </div>
-    <div class="card-value-row">
-      <div class="card-label">Despesas Pagas:</div>
-      <div class="card-value">R$ ${despesasPagas.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
-    </div>
-    <div class="card-value-row total">
-      <div class="card-label">Fluxo de Caixa:</div>
-      <div class="card-value">R$ ${fluxoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
-    </div>`;
+async function renderFluxoCard(faturamentoMensal, despesasPagas, capitalGiro) {
+  try {
+    // Usa o capitalGiro passado como parâmetro ou busca se não foi fornecido
+    const giro = capitalGiro !== undefined ? capitalGiro : await config.getCapitalGiro();
+    const dinheiroTotal = faturamentoMensal + giro;
+    const fluxoCaixa = dinheiroTotal - despesasPagas;
+    
+    document.getElementById('card-fluxo').innerHTML = `
+      <h3>FLUXO DE CAIXA</h3>
+      <div class="card-value-row">
+        <div class="card-label">Dinheiro Total:</div>
+        <div class="card-value">R$ ${dinheiroTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+      </div>
+      <div class="card-value-row">
+        <div class="card-label">Despesas Pagas:</div>
+        <div class="card-value">R$ ${despesasPagas.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+      </div>
+      <div class="card-value-row total">
+        <div class="card-label">Fluxo de Caixa:</div>
+        <div class="card-value">R$ ${fluxoCaixa.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+      </div>`;
+  } catch (error) {
+    console.error('Erro ao renderizar card de fluxo:', error);
+    document.getElementById('card-fluxo').innerHTML = `
+      <h3>FLUXO DE CAIXA</h3>
+      <div class="error-message">Erro ao carregar dados</div>`;
+  }
 }
 
 // Renderiza o card de faturamento e despesas
 function renderFaturamentoCard(faturamentoMensal, despesasMensais, faturamentoPorUnidade, despesasPorUnidade) {
+  // Garante que os objetos existam
+  const fatPorUnidade = faturamentoPorUnidade || { UN1: 0, UN2: 0 };
+  const despPorUnidade = despesasPorUnidade || { UN1: 0, UN2: 0 };
+
   // Calcula os totais
-  const faturamentoUN1 = faturamentoPorUnidade?.UN1 || 0;
-  const faturamentoUN2 = faturamentoPorUnidade?.UN2 || 0;
-  const despesasUN1 = despesasPorUnidade?.UN1 || 0;
-  const despesasUN2 = despesasPorUnidade?.UN2 || 0;
-  const totalFaturamento = faturamentoUN1 + faturamentoUN2;
+  const faturamentoUN1 = Number(fatPorUnidade.UN1 || 0);
+  const faturamentoUN2 = Number(fatPorUnidade.UN2 || 0);
+  const despesasUN1 = Number(despPorUnidade.UN1 || 0);
+  const despesasUN2 = Number(despPorUnidade.UN2 || 0);
+  
+  // Se os valores por unidade não somam o total, usa o faturamento total dividido
+  const totalFaturamentoPorUnidade = faturamentoUN1 + faturamentoUN2;
+  let fatUN1 = faturamentoUN1;
+  let fatUN2 = faturamentoUN2;
+  
+  // Se não temos valores por unidade mas temos o total, divide igualmente
+  if (totalFaturamentoPorUnidade === 0 && faturamentoMensal > 0) {
+    fatUN1 = faturamentoMensal / 2;
+    fatUN2 = faturamentoMensal / 2;
+    console.log('Faturamento dividido igualmente entre as unidades:', fatUN1, fatUN2);
+  }
+  
+  const totalFaturamento = fatUN1 + fatUN2;
   const totalDespesas = despesasUN1 + despesasUN2;
   const diferenca = totalFaturamento - totalDespesas;
   
@@ -464,11 +468,11 @@ function renderFaturamentoCard(faturamentoMensal, despesasMensais, faturamentoPo
     <h3>RESUMO MENSAL</h3>
     <div class="card-value-row">
       <div class="card-label">Faturamento Mensal M1:</div>
-      <div class="card-value">R$ ${faturamentoUN1.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+      <div class="card-value">R$ ${fatUN1.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
     </div>
     <div class="card-value-row">
       <div class="card-label">Faturamento Mensal M2:</div>
-      <div class="card-value">R$ ${faturamentoUN2.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+      <div class="card-value">R$ ${fatUN2.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
     </div>
     <div class="card-value-row">
       <div class="card-label">Despesa Mensal M1:</div>
@@ -488,49 +492,94 @@ function renderFaturamentoCard(faturamentoMensal, despesasMensais, faturamentoPo
 function renderWeeklyChart(weekly) {
   // Verifica se estamos na página de gráficos
   const chartCanvas = document.getElementById('weekly-revenue-chart');
-  if (!chartCanvas) return;
-  
-  const ctx = chartCanvas.getContext('2d');
-  if (chart) chart.destroy();
-  
+  if (!chartCanvas) {
+    return;
+  }
+
+  // Prepara os dados para o gráfico
   const weeks = Object.keys(weekly).map(Number).sort((a, b) => a - b);
+  const values = weeks.map(w => weekly[w]);
   
-  chart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: weeks.map(w => 'Semana ' + w),
-      datasets: [{
-        data: weeks.map(w => weekly[w]),
-        tension: 0.35,
-        borderWidth: 3,
-        pointRadius: 4,
-        backgroundColor: 'rgba(0, 112, 243, 0.1)',
-        borderColor: 'rgba(0, 112, 243, 0.8)'
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {mode: 'nearest', intersect: false},
-      plugins: {
-        legend: {display: false},
-        tooltip: {
-          callbacks: {
-            label: c => 'R$ ' + c.parsed.y.toLocaleString('pt-BR', {minimumFractionDigits: 2})
+  // Verifica se o gráfico já existe
+  if (chart) {
+    // Atualiza os dados do gráfico existente em vez de recriar
+    chart.data.labels = weeks.map(w => 'Semana ' + w);
+    chart.data.datasets[0].data = values;
+    chart.update();
+    return;
+  }
+  
+  // Se o gráfico não existe, criamos um novo
+  const ctx = chartCanvas.getContext('2d');
+  
+  try {
+    chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: weeks.map(w => 'Semana ' + w),
+        datasets: [{
+          data: values,
+          tension: 0.35,
+          borderWidth: 3,
+          pointRadius: 4,
+          backgroundColor: 'rgba(0, 112, 243, 0.1)',
+          borderColor: 'rgba(0, 112, 243, 0.8)'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {mode: 'nearest', intersect: false},
+        plugins: {
+          legend: {display: false},
+          tooltip: {
+            callbacks: {
+              label: c => 'R$ ' + c.parsed.y.toLocaleString('pt-BR', {minimumFractionDigits: 2})
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {callback: v => 'R$ ' + v.toLocaleString('pt-BR')}
           }
         }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: {callback: v => 'R$ ' + v.toLocaleString('pt-BR')}
-        }
       }
-    }
-  });
+    });
+  } catch (error) {
+    console.error('Erro ao renderizar o gráfico:', error);
+  }
 }
 
 /* ----- Função principal ----- */
+
+// Criar um cache para dados da API
+const apiCache = {
+  data: {},
+  timestamp: {},
+  ttl: 60000, // 1 minuto de TTL (tempo de vida) para o cache
+
+  // Verifica se um dado no cache ainda é válido
+  isValid(key) {
+    return (
+      this.data[key] !== undefined &&
+      this.timestamp[key] !== undefined &&
+      Date.now() - this.timestamp[key] < this.ttl
+    );
+  },
+
+  // Armazena um dado no cache
+  set(key, data) {
+    this.data[key] = data;
+    this.timestamp[key] = Date.now();
+    return data;
+  },
+
+  // Recupera um dado do cache
+  get(key) {
+    return this.isValid(key) ? this.data[key] : null;
+  }
+};
 
 // Inicializa a página
 async function init() {
@@ -550,35 +599,100 @@ async function init() {
       <div class="loading-indicator">Carregando dados...</div>`;
     
     try {
-      // Busca os dados da API
-      const [
-        despesasPagas, 
-        despesasMensais, 
-        faturamentoMensal, 
-        faturamentoPorUnidade, 
-        despesasPorUnidade
-      ] = await Promise.all([
-        getMonthlyPaidExpenses(),
-        getMonthlyExpenses(),
-        getMonthlyRevenue(),
-        getMonthlyRevenueByUnit(),
-        getMonthlyExpensesByUnit()
-      ]);
+      // Usa um único endpoint para buscar todas as despesas
+      let despesas = apiCache.get('despesas');
+      let faturamentoStats = apiCache.get('faturamento');
+      let faturamentoPorUnidade = apiCache.get('faturamento_por_unidade');
+      let capitalGiro = apiCache.get('capital_giro');
+
+      // Busca os dados em paralelo com cache
+      const fetchPromises = [];
       
-      console.log('Dados carregados:');
-      console.log('- Despesas pagas:', despesasPagas);
-      console.log('- Despesas mensais:', despesasMensais);
-      console.log('- Faturamento mensal:', faturamentoMensal);
-      console.log('- Faturamento por unidade:', faturamentoPorUnidade);
-      console.log('- Despesas por unidade:', despesasPorUnidade);
+      if (!despesas) {
+        fetchPromises.push(
+          fetchWithRetry(`${API_URL}/api/despesas`)
+            .then(response => response.json())
+            .then(data => apiCache.set('despesas', data))
+        );
+      }
+      
+      if (!faturamentoStats) {
+        fetchPromises.push(
+          fetchWithRetry(`${API_URL}/api/entradas/estatisticas/mes-atual`)
+            .then(response => response.json())
+            .then(data => apiCache.set('faturamento', data))
+            .catch(() => apiCache.set('faturamento', { totalGeral: 0 }))
+        );
+      }
+      
+      if (!faturamentoPorUnidade) {
+        fetchPromises.push(
+          getMonthlyRevenueByUnit()
+            .then(data => apiCache.set('faturamento_por_unidade', data))
+        );
+      }
+      
+      if (!capitalGiro) {
+        fetchPromises.push(
+          config.getCapitalGiro().then(data => apiCache.set('capital_giro', data))
+        );
+      }
+      
+      // Aguarda todas as requisições terminarem
+      if (fetchPromises.length > 0) {
+        await Promise.all(fetchPromises);
+      }
+      
+      // Recupera os dados do cache
+      despesas = apiCache.get('despesas') || [];
+      faturamentoStats = apiCache.get('faturamento') || { totalGeral: 0 };
+      faturamentoPorUnidade = apiCache.get('faturamento_por_unidade') || { UN1: 0, UN2: 0 };
+      capitalGiro = apiCache.get('capital_giro') || 0;
+      
+      // Processa os dados em memória - filtra pelo mês atual
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      
+      const monthlyDespesas = despesas.filter(despesa => {
+        if (!despesa || !despesa.data) return false;
+        const despesaDate = new Date(despesa.data + 'T00:00');
+        return despesaDate.getMonth() === currentMonth && 
+               despesaDate.getFullYear() === currentYear;
+      });
+      
+      // Calcula os valores necessários em memória
+      const despesasMensais = monthlyDespesas.reduce((total, despesa) => {
+        return total + Number(despesa.valor || 0);
+      }, 0);
+      
+      const despesasPagas = monthlyDespesas
+        .filter(despesa => despesa.pago === true || despesa.pago === "true")
+        .reduce((total, despesa) => total + Number(despesa.valor || 0), 0);
+      
+      // Agrupa por unidade
+      const despesasPorUnidade = { UN1: 0, UN2: 0 };
+      monthlyDespesas.forEach(despesa => {
+        if (despesa.unidade === 'UN1') {
+          despesasPorUnidade.UN1 += Number(despesa.valor || 0);
+        } else if (despesa.unidade === 'UN2') {
+          despesasPorUnidade.UN2 += Number(despesa.valor || 0);
+        }
+      });
+      
+      // Recupera dados de faturamento
+      const faturamentoMensal = Number(faturamentoStats.totalGeral || 0);
+      
+      // Debug - verifica os valores por unidade antes da renderização
+      console.log('Faturamento por unidade:', faturamentoPorUnidade);
       
       // Renderiza os cards
-      renderFluxoCard(faturamentoMensal, despesasPagas);
+      await renderFluxoCard(faturamentoMensal, despesasPagas, capitalGiro);
       renderFaturamentoCard(faturamentoMensal, despesasMensais, faturamentoPorUnidade, despesasPorUnidade);
       
     } catch (error) {
       console.error('Erro ao carregar dados para dashboard:', error);
-      renderFluxoCard(0, 0);
+      await renderFluxoCard(0, 0);
       renderFaturamentoCard(0, 0, { UN1: 0, UN2: 0 }, { UN1: 0, UN2: 0 });
     }
   } 
@@ -586,7 +700,12 @@ async function init() {
     // Estamos na página de gráficos
     try {
       // Busca os dados semanais
-      const weeklyData = await getWeeklyRevenue();
+      let weeklyData = apiCache.get('weekly_data');
+      
+      if (!weeklyData) {
+        weeklyData = await getWeeklyRevenue();
+        apiCache.set('weekly_data', weeklyData);
+      }
       
       // Renderiza o gráfico
       renderWeeklyChart(weeklyData);

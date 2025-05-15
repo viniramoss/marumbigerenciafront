@@ -6,6 +6,7 @@ const relatorio = require('../relatorio.js');
 const config    = require('../config.js');   // só tema
 
 let currentPage = null;
+let isInitializing = false;
 
 // Aplica o tema imediatamente, antes mesmo de qualquer renderização
 (function() {
@@ -23,31 +24,67 @@ let currentPage = null;
 })();
 
 // Função para inicializar a página atual
-function initCurrentPage() {
-  // qual arquivo está aberto?  ex.: dashboard.html → "dashboard"
-  const page = window.location.pathname.split('/').pop().replace('.html', '');
+async function initCurrentPage() {
+  // Evita inicializações simultâneas
+  if (isInitializing) return;
+  isInitializing = true;
   
-  // Evita reinicializar a mesma página
-  if (currentPage === page) return;
-  currentPage = page;
-  
-  // Limpa quaisquer timers ou event listeners pendentes
-  window.clearTimeout();
-  
-  // Aplica tema antes de tudo
-  config.initTheme();
-  
-  // chama init correspondente com tratamento de erros
   try {
-    switch (page) {
-      case 'dashboard': dashboard.init(); break;
-      case 'cadastro' : cadastro.init();  break;
-      case 'despesas' : despesas.init();  break;
-      case 'relatorio': relatorio.init(); break;
-      case 'settings' : config.init();    break;      // tela de tema
+    // qual arquivo está aberto?  ex.: dashboard.html → "dashboard"
+    const page = window.location.pathname.split('/').pop().replace('.html', '');
+    
+    // Evita reinicializar a mesma página
+    if (currentPage === page) {
+      isInitializing = false;
+      return;
     }
+    currentPage = page;
+    
+    // Limpa quaisquer timers pendentes
+    const allTimers = [];
+    const oldSetTimeout = window.setTimeout;
+    window.setTimeout = function() {
+      const id = oldSetTimeout.apply(this, arguments);
+      allTimers.push(id);
+      return id;
+    };
+    
+    // Aplica tema antes de tudo
+    config.initTheme();
+    
+    // chama init correspondente com tratamento de erros
+    console.log(`Inicializando página: ${page}`);
+    
+    // Executa a inicialização com base na página
+    switch (page) {
+      case 'dashboard': 
+        // Inicia com um pequeno atraso para permitir a renderização da UI primeiro
+        setTimeout(() => dashboard.init(), 50);
+        break;
+      case 'cadastro': 
+        cadastro.init();  
+        break;
+      case 'despesas': 
+        despesas.init();  
+        break;
+      case 'relatorio': 
+        relatorio.init(); 
+        break;
+      case 'graficos': 
+        console.log('Inicializando página de gráficos');
+        setTimeout(() => dashboard.init(), 50);
+        break;
+      case 'settings': 
+        config.init();    
+        break;      // tela de tema
+    }
+    
+    // Restaura setTimeout original
+    window.setTimeout = oldSetTimeout;
   } catch (error) {
-    console.error(`Erro ao inicializar página ${page}:`, error);
+    console.error(`Erro ao inicializar página:`, error);
+  } finally {
+    isInitializing = false;
   }
 }
 
@@ -62,28 +99,31 @@ document.addEventListener('DOMContentLoaded', () => {
   setupSmoothNavigation();
 });
 
-// Função para configurar navegação suave sem flash
+// Função para configurar navegação suave sem flash - Otimizada
 function setupSmoothNavigation() {
-  document.querySelectorAll('a[href]').forEach(link => {
-    // Remove event listeners antigos para evitar duplicação
-    const newLink = link.cloneNode(true);
-    link.parentNode.replaceChild(newLink, link);
-    
-    // Ignora links externos
-    if (!newLink.href.includes(window.location.origin) || newLink.getAttribute('target')) {
-      return;
+  document.body.addEventListener('click', (e) => {
+    // Verifica se o clique foi em um link
+    let target = e.target;
+    while (target && target !== document.body) {
+      if (target.tagName === 'A' && target.href) {
+        // Ignora links externos
+        if (!target.href.includes(window.location.origin) || target.getAttribute('target')) {
+          return;
+        }
+        
+        e.preventDefault();
+        
+        // Adiciona classe de transição
+        document.body.classList.add('page-transition');
+        
+        // Aguarda a transição acontecer antes de navegar
+        setTimeout(() => {
+          window.location.href = target.href;
+        }, 50); // Pequeno delay para a transição visual acontecer
+        
+        return;
+      }
+      target = target.parentNode;
     }
-    
-    newLink.addEventListener('click', (e) => {
-      e.preventDefault();
-      
-      // Adiciona classe de transição
-      document.body.classList.add('page-transition');
-      
-      // Aguarda a transição acontecer antes de navegar
-      setTimeout(() => {
-        window.location.href = newLink.href;
-      }, 50); // Pequeno delay para a transição visual acontecer
-    });
   });
 }

@@ -3,6 +3,22 @@
 // Importar a variável API_URL do arquivo de configuração
 const { API_URL } = require('./env-config');
 
+// Helper function to retry API calls
+async function fetchWithRetry(url, options = {}, retries = 3, delay = 1000) {
+  try {
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    return response;
+  } catch (error) {
+    if (retries <= 1) throw error;
+    console.warn(`Retrying fetch to ${url}. Attempts left: ${retries-1}`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+    return fetchWithRetry(url, options, retries - 1, delay);
+  }
+}
+
 // Script para aplicar tema imediatamente, mesmo antes da renderização do DOM
 (function() {
   // Tenta executar o mais cedo possível
@@ -261,31 +277,28 @@ function initCapitalGiro() {
   
   if (!capitalInput || !saveButton) return; // Não estamos na página de configurações
   
+  // Mostrar que está carregando
+  capitalInput.placeholder = "Carregando...";
+  capitalInput.disabled = true;
+  
   try {
-    // Primeiro carrega do localStorage para exibir imediatamente
-    const savedCapital = localStorage.getItem('capitalGiro');
-    if (savedCapital) {
-      capitalInput.value = savedCapital;
-      capitalInput.placeholder = savedCapital;
-    }
-    
-    // Depois tenta carregar o valor do backend para atualizar se necessário
-    fetch(`${API_URL}/api/opcoes/capital-giro`)
+    // Carregar o valor do backend
+    fetchWithRetry(`${API_URL}/api/opcoes/capital-giro`)
       .then(response => response.json())
       .then(data => {
-        // Se conseguiu carregar do backend, atualiza o campo e o localStorage
+        // Se conseguiu carregar do backend, atualiza o campo
         if (data && data.capitalGiro !== undefined) {
           capitalInput.value = data.capitalGiro;
           capitalInput.placeholder = `${data.capitalGiro}`;
-          localStorage.setItem('capitalGiro', data.capitalGiro);
         } else {
-          // Se não conseguiu, usa o valor do localStorage (já feito acima)
-          // Mantém o que já havia sido definido
+          capitalInput.placeholder = "0.00";
         }
+        capitalInput.disabled = false;
       })
       .catch(error => {
         console.error('Erro ao carregar capital de giro do backend:', error);
-        // Se falhar, já estamos usando o localStorage (definido acima)
+        capitalInput.placeholder = "Erro ao carregar";
+        capitalInput.disabled = false;
       });
     
     // Adiciona event listener para o botão de salvar
@@ -298,36 +311,25 @@ function initCapitalGiro() {
         return;
       }
       
-      // Salva no localStorage
-      localStorage.setItem('capitalGiro', valor);
-      capitalInput.placeholder = valor;
-      
-      // Tenta salvar no arquivo JSON (backend)
-      try {
-        // Utiliza a API do backend, se disponível
-        fetch(`${API_URL}/api/opcoes/salvar-capital`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ capitalGiro: parseFloat(valor) })
-        })
-        .then(response => {
-          if (response.ok) {
-            showFeedback('Capital de Giro salvo com sucesso!');
-          } else {
-            // Se falhar no backend, pelo menos temos no localStorage
-            showFeedback('Valor salvo localmente. Não foi possível salvar no servidor.');
-          }
-        })
-        .catch(error => {
-          console.error('Erro ao salvar no servidor:', error);
-          showFeedback('Valor salvo localmente. Não foi possível salvar no servidor.');
-        });
-      } catch (e) {
-        console.error('Erro ao salvar capital de giro:', e);
-        showFeedback('Valor salvo localmente apenas.');
-      }
+      // Salva no backend
+      fetchWithRetry(`${API_URL}/api/opcoes/salvar-capital`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ capitalGiro: parseFloat(valor) })
+      })
+      .then(response => {
+        if (response.ok) {
+          showFeedback('Capital de Giro salvo com sucesso!');
+        } else {
+          showFeedback('Não foi possível salvar no servidor.');
+        }
+      })
+      .catch(error => {
+        console.error('Erro ao salvar no servidor:', error);
+        showFeedback('Erro ao salvar. Tente novamente mais tarde.');
+      });
     });
   } catch (e) {
     console.error('Erro ao inicializar configurações de capital de giro:', e);
@@ -336,9 +338,17 @@ function initCapitalGiro() {
 }
 
 // Função para obter o valor atual de Capital de Giro
-function getCapitalGiro() {
-  const savedCapital = localStorage.getItem('capitalGiro');
-  return savedCapital ? parseFloat(savedCapital) : 0;
+async function getCapitalGiro() {
+  try {
+    const response = await fetchWithRetry(`${API_URL}/api/opcoes/capital-giro`);
+    if (response.ok) {
+      const data = await response.json();
+      return data.capitalGiro || 0;
+    }
+  } catch (error) {
+    console.error('Erro ao buscar capital de giro:', error);
+  }
+  return 0;
 }
 
 function init() {

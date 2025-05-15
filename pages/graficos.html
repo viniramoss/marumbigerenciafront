@@ -8,6 +8,7 @@
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#181a1b" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <aside class="sidebar">
@@ -37,5 +38,14 @@
     </section>
   </main>
   <script src="../renderer.js"></script>
+  <!-- Script para verificar se o gráfico está funcionando -->
+  <script>
+    // Verificação adicional para debug
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('DOM carregado na página de gráficos');
+      const canvas = document.getElementById('weekly-revenue-chart');
+      console.log('Canvas encontrado:', !!canvas);
+    });
+  </script>
 </body>
 </html> 
