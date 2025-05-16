@@ -1,6 +1,7 @@
 /* despesas.js – cadastro de boletos / variáveis (SQLite via Spring) */
 
 const { API_URL } = require('./env-config');
+const utils = require('./utils');
 const API = `${API_URL}/api/despesas`;
 let ready = false;
 
@@ -10,7 +11,6 @@ function init() {
 
   let form = document.getElementById('formDesp');
   const tbody = document.querySelector('#previewDesp tbody');
-  const deleteModal = document.getElementById('deleteModal');
   let deleteId = null;
 
   // Limpa event listeners antigos
@@ -55,49 +55,7 @@ function init() {
 
       } catch (err) {
         console.error(err);
-        alert('Falha ao salvar despesa – veja o console.');
-      }
-    });
-  }
-
-  // Implementação do modal de delete
-  document.querySelectorAll('.modal-close, .btn-cancel').forEach(btn => {
-    const newBtn = btn.cloneNode(true);
-    btn.parentNode.replaceChild(newBtn, btn);
-    
-    newBtn.addEventListener('click', () => {
-      if (deleteModal) {
-        deleteModal.classList.remove('active');
-      }
-    });
-  });
-
-  const confirmDelete = document.getElementById('confirmDelete');
-  if (confirmDelete) {
-    const newBtn = confirmDelete.cloneNode(true);
-    confirmDelete.parentNode.replaceChild(newBtn, confirmDelete);
-    
-    newBtn.addEventListener('click', async () => {
-      if (!deleteId) return;
-      
-      try {
-        const resp = await fetch(`${API}/${deleteId}`, {
-          method: 'DELETE'
-        });
-        
-        if (!resp.ok) throw new Error(`Erro ${resp.status}`);
-        
-        // Remove a linha da tabela após exclusão bem-sucedida
-        const row = document.querySelector(`tr[data-id="${deleteId}"]`);
-        if (row) row.remove();
-        
-        if (deleteModal) {
-          deleteModal.classList.remove('active');
-        }
-        deleteId = null;
-      } catch (err) {
-        console.error(err);
-        alert('Falha ao excluir despesa – veja o console.');
+        utils.showAlert('Erro', 'Falha ao salvar despesa – veja o console.');
       }
     });
   }
@@ -136,9 +94,22 @@ function init() {
     // Adiciona evento de exclusão ao botão
     tr.querySelector('.btn-delete').addEventListener('click', () => {
       deleteId = o.id;
-      if (deleteModal) {
-        deleteModal.classList.add('active');
-      }
+      utils.showConfirm('Confirmar exclusão', 'Tem certeza que deseja excluir esta despesa?', async () => {
+        try {
+          const resp = await fetch(`${API}/${deleteId}`, {
+            method: 'DELETE'
+          });
+          
+          if (!resp.ok) throw new Error(`Erro ${resp.status}`);
+          
+          // Remove a linha da tabela após exclusão bem-sucedida
+          tr.remove();
+          deleteId = null;
+        } catch (err) {
+          console.error(err);
+          utils.showAlert('Erro', 'Falha ao excluir despesa – veja o console.');
+        }
+      });
     });
     
     tbody.prepend(tr);

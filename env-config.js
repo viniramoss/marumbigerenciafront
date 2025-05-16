@@ -35,7 +35,6 @@ try {
       process.env[k] = envConfig[k];
     }
     envLoaded = true;
-    console.log('Arquivo .env carregado com sucesso de:', envPath);
   } else {
     console.warn('Arquivo .env não encontrado em:', envPath);
   }

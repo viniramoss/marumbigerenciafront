@@ -1,12 +1,9 @@
 /* dashboard.js – gera cards e gráfico a partir da API */
 
-const XLSX = require('xlsx');
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
 const { Chart, registerables } = require('chart.js');
 const { API_URL } = require('./env-config');
 const config = require('./config');
+const utils = require('./utils');
 
 // Inicializa Chart.js
 Chart.register(...registerables);
@@ -16,40 +13,13 @@ let chart = null;
 
 /* ----- Funções auxiliares (helpers) ----- */
 
-// Remove acentos e formata string para comparação
-const slug = s => String(s ?? '').trim().toLowerCase().normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
-
-// Converte valor para número, lidando com formatação brasileira
-function parseMoney(v) {
-  if (v == null || v === '') return 0;
-  if (typeof v === 'number') return v;
-  
-  // Limpa a string mantendo apenas números, vírgulas, pontos e sinal negativo
-  let s = String(v).replace(/[^0-9,.\-]/g, '');
-  if (!s) return 0;
-  
-  // Identifica o separador decimal (último ponto ou vírgula)
-  const d = Math.max(s.lastIndexOf(','), s.lastIndexOf('.'));
-  
-  // Formata para padrão americano (ponto como separador decimal)
-  s = d !== -1 
-    ? s.slice(0, d).replace(/[.,]/g, '') + '.' + s.slice(d + 1).replace(/[.,]/g, '')
-    : s.replace(/[.,]/g, '');
-  
-  return parseFloat(s) || 0;
-}
+// Determina a semana do mês para uma data
+const weekOfMonth = d => Math.ceil((d.getDate() + new Date(d.getFullYear(), d.getMonth(), 1).getDay()) / 7);
 
 // Converte diversas representações para objeto Date
 function parseDate(v) {
   // Se já é um Date, retorna ele mesmo
   if (v instanceof Date) return v;
-  
-  // Se é um número (código de data do Excel)
-  if (typeof v === 'number') {
-    const d = XLSX.SSF.parse_date_code(v);
-    return new Date(d.y, d.m - 1, d.d);
-  }
   
   // Meses em português
   const pt = {jan: 0, fev: 1, mar: 2, abr: 3, mai: 4, jun: 5, jul: 6, ago: 7, set: 8, out: 9, nov: 10, dez: 11};
@@ -72,52 +42,13 @@ function parseDate(v) {
   return new Date(NaN);
 }
 
-// Determina a semana do mês para uma data
-const weekOfMonth = d => Math.ceil((d.getDate() + new Date(d.getFullYear(), d.getMonth(), 1).getDay()) / 7);
-
-// Tenta encontrar uma planilha Excel na área de trabalho
-function findXlsx() {
-  const desks = [
-    path.join(os.homedir(), 'OneDrive', 'Área de Trabalho'),
-    path.join(os.homedir(), 'Desktop')
-  ];
-  
-  for (const d of desks) {
-    if (!fs.existsSync(d)) continue;
-    
-    const f = fs.readdirSync(d).find(f => 
-      f.toLowerCase().startsWith('planilha') && 
-      f.toLowerCase().endsWith('.xlsx'));
-    
-    if (f) return path.join(d, f);
-  }
-  
-  return null;
-}
-
-/* ----- Funções para buscar dados da API com retry ----- */
-
-// Helper function to retry API calls
-async function fetchWithRetry(url, options = {}, retries = 3, delay = 500) {
-  try {
-    const response = await fetch(url, options);
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
-    }
-    return response;
-  } catch (error) {
-    if (retries <= 1) throw error;
-    console.warn(`Retrying fetch to ${url}. Attempts left: ${retries-1}`);
-    await new Promise(resolve => setTimeout(resolve, delay));
-    return fetchWithRetry(url, options, retries - 1, delay * 1.5);
-  }
-}
+/* ----- Funções para buscar dados da API ----- */
 
 // Função para buscar todas as despesas do mês atual (total)
 async function getMonthlyExpenses() {
   try {
     // Busca todas as despesas
-    const response = await fetchWithRetry(`${API_URL}/api/despesas`);
+    const response = await utils.fetchWithRetry(`${API_URL}/api/despesas`);
     const despesas = await response.json();
     
     // Filtra pelo mês atual
@@ -148,7 +79,7 @@ async function getMonthlyExpenses() {
 async function getMonthlyExpensesByUnit() {
   try {
     // Busca todas as despesas
-    const response = await fetchWithRetry(`${API_URL}/api/despesas`);
+    const response = await utils.fetchWithRetry(`${API_URL}/api/despesas`);
     
     const despesas = await response.json();
     
@@ -188,7 +119,7 @@ async function getMonthlyExpensesByUnit() {
 async function getMonthlyPaidExpenses() {
   try {
     // Busca todas as despesas
-    const response = await fetchWithRetry(`${API_URL}/api/despesas`);
+    const response = await utils.fetchWithRetry(`${API_URL}/api/despesas`);
     const despesas = await response.json();
     
     // Filtra pelo mês atual e pelas despesas pagas (campo pago = true)
@@ -227,7 +158,7 @@ async function getMonthlyPaidExpenses() {
 // Função para buscar estatísticas de entrada do mês atual
 async function getMonthlyRevenue() {
   try {
-    const response = await fetchWithRetry(`${API_URL}/api/entradas/estatisticas/mes-atual`);
+    const response = await utils.fetchWithRetry(`${API_URL}/api/entradas/estatisticas/mes-atual`);
     const stats = await response.json();
     return Number(stats.totalGeral || 0);
   } catch (error) {
@@ -249,12 +180,10 @@ async function getMonthlyRevenueByUnit() {
     const lastDayStr = lastDay.toISOString().split('T')[0];
     
     // Busca todas as entradas do mês atual diretamente com filtro de data
-    const response = await fetchWithRetry(
+    const response = await utils.fetchWithRetry(
       `${API_URL}/api/entradas?dataInicio=${firstDayStr}&dataFim=${lastDayStr}`
     );
     const entradas = await response.json();
-    
-    console.log(`Entradas encontradas para faturamento por unidade: ${entradas.length}`);
     
     // Agrupa por unidade
     const result = { UN1: 0, UN2: 0 };
@@ -267,7 +196,6 @@ async function getMonthlyRevenueByUnit() {
       }
     });
     
-    console.log('Faturamento por unidade calculado:', result);
     return result;
     
   } catch (error) {
@@ -285,7 +213,7 @@ async function getMonthlyRevenueAlternative() {
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     
     // Busca todas as entradas
-    const response = await fetchWithRetry(`${API_URL}/api/entradas`);
+    const response = await utils.fetchWithRetry(`${API_URL}/api/entradas`);
     const entradas = await response.json();
     
     // Filtra por mês atual e soma
@@ -302,8 +230,7 @@ async function getMonthlyRevenueAlternative() {
     
   } catch (error) {
     console.error('Erro ao buscar faturamento mensal (método alternativo):', error);
-    // Se tudo falhar, tenta usar Excel se disponível
-    return getFaturamentoFromExcel();
+    return 0;
   }
 }
 
@@ -318,12 +245,9 @@ async function getWeeklyRevenue() {
     const firstDayStr = firstDay.toISOString().split('T')[0];
     const lastDayStr = lastDay.toISOString().split('T')[0];
     
-    console.log('Buscando dados semanais do período:', firstDayStr, 'até', lastDayStr);
-    
     // Busca as entradas do mês atual
-    const response = await fetchWithRetry(`${API_URL}/api/entradas?dataInicio=${firstDayStr}&dataFim=${lastDayStr}`);
+    const response = await utils.fetchWithRetry(`${API_URL}/api/entradas?dataInicio=${firstDayStr}&dataFim=${lastDayStr}`);
     const entradas = await response.json();
-    console.log('Entradas retornadas da API:', entradas.length);
     
     // Agrupa por semana
     const weeklyData = {};
@@ -335,72 +259,10 @@ async function getWeeklyRevenue() {
       weeklyData[week] = (weeklyData[week] || 0) + Number(entrada.total || 0);
     });
     
-    console.log('Dados semanais processados:', weeklyData);
     return weeklyData;
   } catch (error) {
     console.error('Erro ao buscar dados semanais:', error);
     return {}; // Retorna objeto vazio em caso de erro
-  }
-}
-
-// Função para tentar obter faturamento do Excel (fallback)
-function getFaturamentoFromExcel() {
-  try {
-    const file = findXlsx();
-    if (!file) return 0;
-
-    const wb = XLSX.readFile(file, {cellDates: true});
-    const fatSheets = wb.SheetNames.filter(n => slug(n).startsWith('fatmarumbi'));
-    
-    let totalFat = 0;
-
-    // Filtrar pelo mês atual
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    
-    for (const s of fatSheets) {
-      const rows = XLSX.utils.sheet_to_json(wb.Sheets[s], {header: 1, defval: ''});
-      const h = rows.findIndex(r => r.map(slug).includes('dinheiro')); 
-      if (h === -1) continue;
-      
-      const head = rows[h].map(slug);
-      const idx = x => head.indexOf(x);
-      const col = {
-        d: idx('data'),
-        t: idx('total'),
-        din: idx('dinheiro'),
-        deb: idx('debito'),
-        cre: idx('credito'),
-        pix: idx('pix'),
-        vou: idx('voucher')
-      };
-      
-      const hasTotal = col.t !== -1;
-      for (let i = h + 1; i < rows.length; i++) {
-        const r = rows[i]; 
-        if (!r || r.every(c => c === '')) continue;
-        
-        const dt = parseDate(r[col.d]); 
-        if (isNaN(dt)) continue;
-        
-        // Filtrar apenas entradas do mês atual
-        if (dt.getMonth() !== currentMonth || dt.getFullYear() !== currentYear) {
-          continue;
-        }
-        
-        const v = hasTotal 
-          ? parseMoney(r[col.t]) 
-          : ['din', 'deb', 'cre', 'pix', 'vou'].reduce((s, k) => s + parseMoney(r[col[k]]), 0);
-        
-        totalFat += v;
-      }
-    }
-    
-    return totalFat;
-  } catch (error) {
-    console.error('Erro ao ler Excel:', error);
-    return 0;
   }
 }
 
@@ -457,7 +319,6 @@ function renderFaturamentoCard(faturamentoMensal, despesasMensais, faturamentoPo
   if (totalFaturamentoPorUnidade === 0 && faturamentoMensal > 0) {
     fatUN1 = faturamentoMensal / 2;
     fatUN2 = faturamentoMensal / 2;
-    console.log('Faturamento dividido igualmente entre as unidades:', fatUN1, fatUN2);
   }
   
   const totalFaturamento = fatUN1 + fatUN2;
@@ -610,7 +471,7 @@ async function init() {
       
       if (!despesas) {
         fetchPromises.push(
-          fetchWithRetry(`${API_URL}/api/despesas`)
+          utils.fetchWithRetry(`${API_URL}/api/despesas`)
             .then(response => response.json())
             .then(data => apiCache.set('despesas', data))
         );
@@ -618,7 +479,7 @@ async function init() {
       
       if (!faturamentoStats) {
         fetchPromises.push(
-          fetchWithRetry(`${API_URL}/api/entradas/estatisticas/mes-atual`)
+          utils.fetchWithRetry(`${API_URL}/api/entradas/estatisticas/mes-atual`)
             .then(response => response.json())
             .then(data => apiCache.set('faturamento', data))
             .catch(() => apiCache.set('faturamento', { totalGeral: 0 }))
@@ -682,9 +543,6 @@ async function init() {
       
       // Recupera dados de faturamento
       const faturamentoMensal = Number(faturamentoStats.totalGeral || 0);
-      
-      // Debug - verifica os valores por unidade antes da renderização
-      console.log('Faturamento por unidade:', faturamentoPorUnidade);
       
       // Renderiza os cards
       await renderFluxoCard(faturamentoMensal, despesasPagas, capitalGiro);

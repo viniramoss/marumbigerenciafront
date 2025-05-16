@@ -18,38 +18,16 @@ let lastSelectedUnit = localStorage.getItem('lastSelectedUnit') || 'UN1';
 
 // Função global para atualizar a visualização da data
 function updateDateDisplay() {
-  console.log(`Atualizando display da data: Mês=${currentMonth}, Ano=${currentYear}`);
+  const dateDisplayEl = document.getElementById('currentDateDisplay');
+  if (!dateDisplayEl) return;
   
-  const fixedPart = document.querySelector('.date-fixed-part');
-  if (fixedPart) {
-    // Obter nome do mês usando a lista de meses
-    const meses = [
-      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-    ];
-    const mesNome = meses[currentMonth - 1];
-    fixedPart.textContent = `${mesNome}/${currentYear}`;
-  }
+  const months = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
   
-  // Ajusta o dia para o último dia do mês se necessário
-  const dayInput = document.querySelector('.day-input');
-  const hiddenInput = document.querySelector('input[name="data"]');
-  
-  if (dayInput && hiddenInput) {
-    let day = parseInt(dayInput.value);
-    if (!isNaN(day)) {
-      const ultimoDia = new Date(currentYear, currentMonth, 0).getDate();
-      if (day > ultimoDia) {
-        day = ultimoDia;
-        dayInput.value = day;
-      }
-      
-      // Atualiza o campo oculto
-      const paddedDay = day.toString().padStart(2, '0');
-      const paddedMonth = currentMonth.toString().padStart(2, '0');
-      hiddenInput.value = `${currentYear}-${paddedMonth}-${paddedDay}`;
-    }
-  }
+  const monthName = months[currentMonth - 1] || 'Mês Desconhecido';
+  dateDisplayEl.textContent = `${monthName} ${currentYear}`;
 }
 
 function init() {
@@ -155,8 +133,6 @@ function init() {
       // Se existirem valores salvos, use-os; caso contrário, use a data atual
       currentMonth = savedMonth ? parseInt(savedMonth, 10) : today.getMonth() + 1;
       currentYear = savedYear ? parseInt(savedYear, 10) : today.getFullYear();
-      
-      console.log(`Valores iniciais carregados: Mês=${currentMonth}, Ano=${currentYear}`);
       
       // Salva os valores atuais no localStorage caso não existam
       if (!savedMonth) {
@@ -568,7 +544,14 @@ function init() {
     if (titleEl) titleEl.textContent = title;
     if (messageEl) messageEl.textContent = message;
     
-    confirmCallback = callback;
+    // Armazena o callback para ser chamado apenas quando clicar em OK/Confirmar
+    confirmCallback = (confirmed) => {
+      // Só executa a ação se o usuário realmente confirmou
+      if (confirmed) {
+        callback();
+      }
+    };
+    
     confirmModal.classList.add('active');
     
     // Foca no botão confirmar para permitir Enter
@@ -602,7 +585,6 @@ module.exports = {
   getCurrentYear: () => currentYear,
   // Métodos para definir novos valores
   setCurrentMonth: (month) => { 
-    console.log(`Alterando mês de ${currentMonth} para ${month}`);
     currentMonth = month; 
     
     // Salvar a configuração no localStorage
@@ -612,7 +594,6 @@ module.exports = {
     updateDateDisplay();
   },
   setCurrentYear: (year) => { 
-    console.log(`Alterando ano de ${currentYear} para ${year}`);
     currentYear = year; 
     
     // Salvar a configuração no localStorage

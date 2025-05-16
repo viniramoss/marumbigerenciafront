@@ -2,22 +2,7 @@
 
 // Importar a variável API_URL do arquivo de configuração
 const { API_URL } = require('./env-config');
-
-// Helper function to retry API calls
-async function fetchWithRetry(url, options = {}, retries = 3, delay = 1000) {
-  try {
-    const response = await fetch(url, options);
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
-    }
-    return response;
-  } catch (error) {
-    if (retries <= 1) throw error;
-    console.warn(`Retrying fetch to ${url}. Attempts left: ${retries-1}`);
-    await new Promise(resolve => setTimeout(resolve, delay));
-    return fetchWithRetry(url, options, retries - 1, delay);
-  }
-}
+const utils = require('./utils');
 
 // Script para aplicar tema imediatamente, mesmo antes da renderização do DOM
 (function() {
@@ -93,7 +78,6 @@ function initDateConfig() {
   try {
     // Importa o módulo cadastro.js
     const cadastroModule = require('./cadastro.js');
-    console.log('Módulo cadastro carregado:', Object.keys(cadastroModule));
     
     // Carrega valores atuais
     const currentMonth = cadastroModule.getCurrentMonth();
@@ -107,8 +91,6 @@ function initDateConfig() {
       yearInput.value = currentYear;
     }
     
-    console.log(`Valores atuais carregados: Mês=${currentMonth}, Ano=${currentYear}`);
-    
     // Preenche o campo de mês com o valor atual
     monthSelect.value = currentMonth;
     
@@ -118,7 +100,6 @@ function initDateConfig() {
       cadastroModule.setCurrentMonth(month);
       saveCurrentDateSettings(month, parseInt(yearInput.value, 10));
       
-      console.log(`Mês alterado para ${month}, chamando updateDateDisplay`);
       // Chama a função de atualização diretamente
       cadastroModule.updateDateDisplay();
       
@@ -130,7 +111,6 @@ function initDateConfig() {
       cadastroModule.setCurrentYear(year);
       saveCurrentDateSettings(parseInt(monthSelect.value, 10), year);
       
-      console.log(`Ano alterado para ${year}, chamando updateDateDisplay`);
       // Chama a função de atualização diretamente
       cadastroModule.updateDateDisplay();
       
@@ -230,22 +210,18 @@ function loadDateSettings() {
     // Define os valores no módulo cadastro.js
     if (savedMonth) {
       const month = parseInt(savedMonth, 10);
-      console.log(`Definindo mês salvo: ${month}`);
       cadastroModule.setCurrentMonth(month);
     } else {
       const currentMonth = today.getMonth() + 1;
-      console.log(`Definindo mês atual: ${currentMonth}`);
       cadastroModule.setCurrentMonth(currentMonth);
       localStorage.setItem('currentMonth', currentMonth);
     }
     
     if (savedYear) {
       const year = parseInt(savedYear, 10);
-      console.log(`Definindo ano salvo: ${year}`);
       cadastroModule.setCurrentYear(year);
     } else {
       const currentYear = today.getFullYear();
-      console.log(`Definindo ano atual: ${currentYear}`);
       cadastroModule.setCurrentYear(currentYear);
       localStorage.setItem('currentYear', currentYear);
     }
@@ -271,84 +247,70 @@ function loadDateSettings() {
 
 // Função para inicializar configurações de Capital de Giro
 function initCapitalGiro() {
-  // Verifica se está na página de configurações
   const capitalInput = document.getElementById('capitalGiroInput');
-  const saveButton = document.getElementById('saveCapitalButton');
+  const saveCapitalBtn = document.getElementById('saveCapitalBtn');
   
-  if (!capitalInput || !saveButton) return; // Não estamos na página de configurações
-  
-  // Mostrar que está carregando
-  capitalInput.placeholder = "Carregando...";
-  capitalInput.disabled = true;
+  if (!capitalInput || !saveCapitalBtn) return; // Se não estamos na página de configurações
   
   try {
     // Carregar o valor do backend
-    fetchWithRetry(`${API_URL}/api/opcoes/capital-giro`)
+    utils.fetchWithRetry(`${API_URL}/api/opcoes/capital-giro`)
       .then(response => response.json())
       .then(data => {
-        // Se conseguiu carregar do backend, atualiza o campo
-        if (data && data.capitalGiro !== undefined) {
-          capitalInput.value = data.capitalGiro;
-          capitalInput.placeholder = `${data.capitalGiro}`;
-        } else {
-          capitalInput.placeholder = "0.00";
-        }
-        capitalInput.disabled = false;
+        const valor = data.capitalGiro || 0;
+        capitalInput.value = valor;
       })
-      .catch(error => {
-        console.error('Erro ao carregar capital de giro do backend:', error);
-        capitalInput.placeholder = "Erro ao carregar";
-        capitalInput.disabled = false;
+      .catch(err => {
+        console.warn('Erro ao carregar capital de giro:', err);
+        capitalInput.value = 0;
       });
     
-    // Adiciona event listener para o botão de salvar
-    saveButton.addEventListener('click', function() {
-      const valor = capitalInput.value;
+    // Event listener para salvar alterações
+    saveCapitalBtn.addEventListener('click', () => {
+      const valor = parseFloat(capitalInput.value.replace(/[^0-9.,]/g, '').replace(',', '.'));
       
-      // Valida o valor
-      if (!valor || isNaN(parseFloat(valor))) {
-        showFeedback('Por favor, informe um valor válido.');
+      if (isNaN(valor)) {
+        utils.showAlert('Atenção', 'Por favor, insira um valor válido.');
         return;
       }
       
       // Salva no backend
-      fetchWithRetry(`${API_URL}/api/opcoes/salvar-capital`, {
+      utils.fetchWithRetry(`${API_URL}/api/opcoes/salvar-capital`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ capitalGiro: parseFloat(valor) })
+        body: JSON.stringify({ capitalGiro: valor })
       })
       .then(response => {
-        if (response.ok) {
-          showFeedback('Capital de Giro salvo com sucesso!');
-        } else {
-          showFeedback('Não foi possível salvar no servidor.');
+        if (!response.ok) {
+          throw new Error('Falha ao salvar');
         }
+        showFeedback('Capital de giro salvo com sucesso!');
       })
-      .catch(error => {
-        console.error('Erro ao salvar no servidor:', error);
-        showFeedback('Erro ao salvar. Tente novamente mais tarde.');
+      .catch(err => {
+        console.error('Erro ao salvar capital de giro:', err);
+        showFeedback('Erro ao salvar. Tente novamente.');
       });
     });
   } catch (e) {
-    console.error('Erro ao inicializar configurações de capital de giro:', e);
-    showFeedback('Erro ao carregar configurações. Veja o console para detalhes.');
+    console.error('Erro ao inicializar capital de giro:', e);
   }
 }
 
-// Função para obter o valor atual de Capital de Giro
+// Função para obter o capital de giro atual
 async function getCapitalGiro() {
   try {
-    const response = await fetchWithRetry(`${API_URL}/api/opcoes/capital-giro`);
+    const response = await utils.fetchWithRetry(`${API_URL}/api/opcoes/capital-giro`);
     if (response.ok) {
       const data = await response.json();
-      return data.capitalGiro || 0;
+      return parseFloat(data.capitalGiro || 0);
     }
+    return 0;
   } catch (error) {
-    console.error('Erro ao buscar capital de giro:', error);
+    console.error('Erro ao obter capital de giro:', error);
+    return 0;
   }
-  return 0;
 }
 
 function init() {

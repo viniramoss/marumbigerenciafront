@@ -4,6 +4,7 @@ const cadastro  = require('../cadastro.js');
 const despesas  = require('../despesas.js');
 const relatorio = require('../relatorio.js');
 const config    = require('../config.js');   // só tema
+const utils     = require('../utils.js');    // utilitários gerais
 
 let currentPage = null;
 let isInitializing = false;
@@ -49,11 +50,11 @@ async function initCurrentPage() {
       return id;
     };
     
+    // Inicializa o sistema de modais globais
+    utils.initModals();
+    
     // Aplica tema antes de tudo
     config.initTheme();
-    
-    // chama init correspondente com tratamento de erros
-    console.log(`Inicializando página: ${page}`);
     
     // Executa a inicialização com base na página
     switch (page) {
@@ -71,7 +72,6 @@ async function initCurrentPage() {
         relatorio.init(); 
         break;
       case 'graficos': 
-        console.log('Inicializando página de gráficos');
         setTimeout(() => dashboard.init(), 50);
         break;
       case 'settings': 

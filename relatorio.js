@@ -1,6 +1,7 @@
 /* relatorio.js – lista, filtros e marcação pago */
 
 const { API_URL } = require('./env-config');
+const utils = require('./utils');
 let firstRun = true;
 let tblBody, fUnid, fTipo, fStat, fFornecedor, fValor, fDataInicio, fDataFim;
 let btnLimparFiltros;
@@ -8,6 +9,11 @@ let resumoTotal, resumoPago, resumoAPagar;
 let currentDespesaId = null;
 let selectedBank = null;
 let selectedMethod = null;
+
+// Armazenar o último banco e método selecionados para futuras operações
+let lastSelectedBank = localStorage.getItem('lastSelectedBank');
+let lastSelectedMethod = localStorage.getItem('lastSelectedMethod');
+
 let allDespesas = []; // Armazenar todas as despesas para filtrar no cliente
 
 const API = API_URL;
@@ -15,16 +21,17 @@ const API = API_URL;
 // Configuração dinâmica das opções de bancos e métodos
 let BANK_OPTIONS = [
   { id: 'itau', label: 'Itaú' },
-  { id: 'bradesco', label: 'Bradesco' },
+  { id: 'caixa', label: 'Caixa' },
   { id: 'santander', label: 'Santander' },
-  { id: 'nubank', label: 'Nubank' }
+  { id: 'bradesco', label: 'Bradesco' }
 ];
 
 let PAYMENT_METHODS = [
-  { id: 'pix', label: 'Pix' },
+  { id: 'dinheiro', label: 'Dinheiro' },
+  { id: 'pix', label: 'PIX' },
+  { id: 'transferencia', label: 'Transferência' },
   { id: 'boleto', label: 'Boleto' },
-  { id: 'ted', label: 'TED/DOC' },
-  { id: 'debito', label: 'Débito' }
+  { id: 'cartao', label: 'Cartão' }
 ];
 
 function init() {
@@ -103,6 +110,9 @@ function init() {
     // Event listeners para os modais
     setupModalEvents();
     
+    // Configurar eventos de teclado para os modais
+    setupKeyboardEvents();
+    
     firstRun = false;
   }
   
@@ -117,7 +127,7 @@ async function loadOptionsFromBackend() {
     generatePaymentOptions('bankModal', [{ id: 'loading', label: 'Carregando...' }]);
     generatePaymentOptions('methodModal', [{ id: 'loading', label: 'Carregando...' }]);
     
-    const resp = await fetchWithRetry(`${API}/api/opcoes`);
+    const resp = await utils.fetchWithRetry(`${API}/api/opcoes`);
     const options = await resp.json();
     if (options.bancos && Array.isArray(options.bancos)) {
       BANK_OPTIONS = options.bancos;
@@ -158,16 +168,20 @@ function generatePaymentOptions(modalId, options) {
       e.stopPropagation(); // Evita que o clique seja interpretado como seleção da opção
       
       const isBank = modalId === 'bankModal';
-      if (confirm(`Tem certeza que deseja remover "${option.label}"?`)) {
-        // Remove da lista de opções
-        const optionsList = isBank ? BANK_OPTIONS : PAYMENT_METHODS;
-        const index = optionsList.findIndex(o => o.id === option.id);
-        if (index !== -1) {
-          optionsList.splice(index, 1);
-          // Regenera as opções
-          generatePaymentOptions(modalId, optionsList);
+      utils.showConfirm(
+        'Confirmar exclusão', 
+        `Tem certeza que deseja remover "${option.label}"?`, 
+        () => {
+          // Remove da lista de opções
+          const optionsList = isBank ? BANK_OPTIONS : PAYMENT_METHODS;
+          const index = optionsList.findIndex(o => o.id === option.id);
+          if (index !== -1) {
+            optionsList.splice(index, 1);
+            // Regenera as opções
+            generatePaymentOptions(modalId, optionsList);
+          }
         }
-      }
+      );
     });
     
     container.appendChild(optionDiv);
@@ -205,7 +219,7 @@ function generatePaymentOptions(modalId, options) {
 async function saveOptionsToBackend() {
   try {
     // Salvar no backend
-    const resp = await fetchWithRetry(`${API}/api/opcoes`, {
+    const resp = await utils.fetchWithRetry(`${API}/api/opcoes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -220,7 +234,7 @@ async function saveOptionsToBackend() {
     }
   } catch (err) {
     console.error('Falha ao salvar opções:', err);
-    showFeedback('Erro ao salvar opções. Verifique a conexão.');
+    utils.showAlert('Erro', 'Erro ao salvar opções. Verifique a conexão.');
   }
 }
 
@@ -358,27 +372,105 @@ function buildQuery() {
 }
 
 function setupModalEvents() {
-  // Fechar todos os modais
-  document.querySelectorAll('.modal-close, .btn-cancel').forEach(btn => {
+  // Fechar todos os modais (exceto o modal de exclusão que tratamos separadamente)
+  document.querySelectorAll('.modal-overlay:not(#deleteModal) .modal-close, .modal-overlay:not(#deleteModal) .btn-cancel').forEach(btn => {
     // Clone para remover event listeners antigos
     const newBtn = btn.cloneNode(true);
     btn.parentNode.replaceChild(newBtn, btn);
     
     newBtn.addEventListener('click', () => {
-      document.querySelectorAll('.modal-overlay').forEach(modal => {
-        modal.classList.remove('active');
-      });
-      // Resetar estados
-      currentDespesaId = null;
-      selectedBank = null;
-      selectedMethod = null;
+      // Verifica qual modal está sendo fechado
+      const modal = newBtn.closest('.modal-overlay');
+      if (!modal) return;
       
-      // Limpar seleções nos modais
-      document.querySelectorAll('.payment-option').forEach(opt => {
-        opt.classList.remove('selected');
-      });
+      // Verificamos se estamos no fluxo de pagamento
+      const modalId = modal.id;
+      const isPaymentFlow = modalId === 'bankModal' || modalId === 'methodModal';
+      
+      // Fecha o modal 
+      modal.classList.remove('active');
+      
+      // Só resetamos o currentDespesaId se não estivermos no fluxo de pagamento
+      if (!isPaymentFlow) {
+        currentDespesaId = null;
+      }
+      
+      // Se for o fluxo de pagamento e estiver clicando em Cancelar ou X, resetamos tudo
+      if (isPaymentFlow && (newBtn.classList.contains('btn-cancel') || newBtn.classList.contains('modal-close'))) {
+        currentDespesaId = null;
+        selectedBank = null;
+        selectedMethod = null;
+        
+        // Limpar seleções nos modais
+        document.querySelectorAll('.payment-option').forEach(opt => {
+          opt.classList.remove('selected');
+        });
+      }
     });
   });
+  
+  // Tratamento específico para fechar o modal de exclusão (sem executar a exclusão)
+  const deleteModalCloseBtn = document.querySelector('#deleteModal .modal-close');
+  const deleteModalCancelBtn = document.querySelector('#deleteModal .btn-cancel');
+  
+  if (deleteModalCloseBtn) {
+    const newCloseBtn = deleteModalCloseBtn.cloneNode(true);
+    deleteModalCloseBtn.parentNode.replaceChild(newCloseBtn, deleteModalCloseBtn);
+    
+    newCloseBtn.addEventListener('click', () => {
+      const deleteModal = document.getElementById('deleteModal');
+      if (deleteModal) {
+        deleteModal.classList.remove('active');
+      }
+      // Apenas limpa o ID da despesa para evitar exclusões acidentais
+      currentDespesaId = null;
+    });
+  }
+  
+  if (deleteModalCancelBtn) {
+    const newCancelBtn = deleteModalCancelBtn.cloneNode(true);
+    deleteModalCancelBtn.parentNode.replaceChild(newCancelBtn, deleteModalCancelBtn);
+    
+    newCancelBtn.addEventListener('click', () => {
+      const deleteModal = document.getElementById('deleteModal');
+      if (deleteModal) {
+        deleteModal.classList.remove('active');
+      }
+      // Apenas limpa o ID da despesa para evitar exclusões acidentais
+      currentDespesaId = null;
+    });
+  }
+  
+  // Confirmação de exclusão
+  const confirmDelete = document.getElementById('confirmDelete');
+  if (confirmDelete) {
+    const newBtn = confirmDelete.cloneNode(true);
+    confirmDelete.parentNode.replaceChild(newBtn, confirmDelete);
+    
+    newBtn.addEventListener('click', async () => {
+      if (!currentDespesaId) return;
+      
+      try {
+        const resp = await utils.fetchWithRetry(`${API}/api/despesas/${currentDespesaId}`, {
+          method: 'DELETE'
+        });
+        
+        if (!resp.ok) throw new Error(`Erro ${resp.status}`);
+        
+        const deleteModal = document.getElementById('deleteModal');
+        if (deleteModal) deleteModal.classList.remove('active');
+        
+        currentDespesaId = null;
+        
+        // Atualizar tabela
+        render();
+        
+      } catch (err) {
+        console.error(err);
+        utils.showAlert('Erro', 'Falha ao excluir despesa – veja o console');
+      }
+    });
+  }
   
   // Função para adicionar nova opção
   function addNewOption() {
@@ -392,7 +484,7 @@ function setupModalEvents() {
     const newName = newOptionName.value.trim();
     
     if (!newName) {
-      alert('Por favor, digite um nome válido');
+      utils.showAlert('Atenção', 'Por favor, digite um nome válido');
       return;
     }
     
@@ -475,7 +567,7 @@ function setupModalEvents() {
     
     newBtn.addEventListener('click', () => {
       if (!selectedBank) {
-        alert('Por favor, selecione um banco');
+        utils.showAlert('Atenção', 'Por favor, selecione um banco');
         return;
       }
       
@@ -483,7 +575,27 @@ function setupModalEvents() {
       const methodModal = document.getElementById('methodModal');
       
       if (bankModal) bankModal.classList.remove('active');
-      if (methodModal) methodModal.classList.add('active');
+      
+      // Pre-selecionar o último método utilizado, se existir
+      if (methodModal && lastSelectedMethod) {
+        const methodOptions = methodModal.querySelectorAll('.payment-option');
+        methodOptions.forEach(option => {
+          if (option.getAttribute('data-label') === lastSelectedMethod) {
+            option.classList.add('selected');
+            selectedMethod = lastSelectedMethod;
+          }
+        });
+      }
+      
+      if (methodModal) {
+        methodModal.classList.add('active');
+        
+        // Focus no modal para permitir navegação por teclado
+        setTimeout(() => {
+          const confirmBtn = document.getElementById('confirmMethod');
+          if (confirmBtn && selectedMethod) confirmBtn.focus();
+        }, 100);
+      }
     });
   }
   
@@ -495,12 +607,12 @@ function setupModalEvents() {
     
     newBtn.addEventListener('click', async () => {
       if (!selectedMethod) {
-        alert('Por favor, selecione um método de pagamento');
+        utils.showAlert('Atenção', 'Por favor, selecione um método de pagamento');
         return;
       }
       
       if (!currentDespesaId) {
-        alert('Erro ao identificar despesa');
+        utils.showAlert('Erro', 'Erro ao identificar despesa');
         return;
       }
       
@@ -510,9 +622,7 @@ function setupModalEvents() {
           metodo: selectedMethod
         };
         
-        console.log('Enviando dados de pagamento:', paymentData);
-        
-        const resp = await fetchWithRetry(`${API}/api/despesas/${currentDespesaId}/pago?valor=true`, {
+        const resp = await utils.fetchWithRetry(`${API}/api/despesas/${currentDespesaId}/pago?valor=true`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(paymentData)
@@ -522,6 +632,14 @@ function setupModalEvents() {
         
         const methodModal = document.getElementById('methodModal');
         if (methodModal) methodModal.classList.remove('active');
+        
+        // Salvar o banco e método selecionados para uso futuro
+        if (selectedBank && selectedMethod) {
+          localStorage.setItem('lastSelectedBank', selectedBank);
+          localStorage.setItem('lastSelectedMethod', selectedMethod);
+          lastSelectedBank = selectedBank;
+          lastSelectedMethod = selectedMethod;
+        }
         
         // Limpar seleções
         currentDespesaId = null;
@@ -533,38 +651,7 @@ function setupModalEvents() {
         
       } catch (err) {
         console.error('Falha ao processar pagamento:', err);
-        alert('Falha ao processar pagamento – veja o console');
-      }
-    });
-  }
-  
-  // Confirmação de exclusão
-  const confirmDelete = document.getElementById('confirmDelete');
-  if (confirmDelete) {
-    const newBtn = confirmDelete.cloneNode(true);
-    confirmDelete.parentNode.replaceChild(newBtn, confirmDelete);
-    
-    newBtn.addEventListener('click', async () => {
-      if (!currentDespesaId) return;
-      
-      try {
-        const resp = await fetchWithRetry(`${API}/api/despesas/${currentDespesaId}`, {
-          method: 'DELETE'
-        });
-        
-        if (!resp.ok) throw new Error(`Erro ${resp.status}`);
-        
-        const deleteModal = document.getElementById('deleteModal');
-        if (deleteModal) deleteModal.classList.remove('active');
-        
-        currentDespesaId = null;
-        
-        // Atualizar tabela
-        render();
-        
-      } catch (err) {
-        console.error(err);
-        alert('Falha ao excluir despesa – veja o console');
+        utils.showAlert('Erro', 'Falha ao processar pagamento – veja o console');
       }
     });
   }
@@ -630,10 +717,34 @@ function renderDespesas(despesas) {
         // Se estiver marcando como pago, mostra modal de seleção de banco
         currentDespesaId = d.id;
         const bankModal = document.getElementById('bankModal');
-        if (bankModal) bankModal.classList.add('active');
+        
+        // Pre-selecionar o último banco utilizado, se existir
+        if (bankModal && lastSelectedBank) {
+          const bankOptions = bankModal.querySelectorAll('.payment-option');
+          bankOptions.forEach(option => {
+            if (option.getAttribute('data-label') === lastSelectedBank) {
+              option.classList.add('selected');
+              selectedBank = lastSelectedBank;
+            }
+          });
+        }
+        
+        if (bankModal) {
+          bankModal.classList.add('active');
+          
+          // Focus no modal para permitir navegação por teclado
+          setTimeout(() => {
+            const confirmBtn = document.getElementById('confirmBank');
+            if (confirmBtn && selectedBank) confirmBtn.focus();
+          }, 100);
+        }
       } else {
         // Se estiver desmarcando, apenas atualiza o status
-                fetchWithRetry(          `${API}/api/despesas/${d.id}/pago?valor=false`,          {             method: 'PUT',            headers: { 'Content-Type': 'application/json' },            body: JSON.stringify({})          }        )
+        utils.fetchWithRetry(`${API}/api/despesas/${d.id}/pago?valor=false`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        })
         .then(response => {
           if (!response.ok) {
             throw new Error(`Erro ${response.status}`);
@@ -643,7 +754,7 @@ function renderDespesas(despesas) {
         .then(() => render())
         .catch(error => {
           console.error('Erro ao desmarcar como pago:', error);
-          alert('Falha ao desmarcar pagamento - veja o console');
+          utils.showAlert('Erro', 'Falha ao desmarcar pagamento - veja o console');
           render(); // Re-renderiza para restaurar o estado anterior
         });
       }
@@ -721,60 +832,91 @@ function atualizarResumo(despesas) {
   }
 }
 
-function render() {
-  if (!tblBody) return;
+// Função principal para carregar os pagamentos e renderizar a tabela
+async function render() {
+  const statusEl = document.getElementById('loading-status');
+  if (statusEl) statusEl.textContent = 'Carregando dados...';
   
-  tblBody.innerHTML = '<tr><td colspan="9">Carregando…</td></tr>';
-
-  const qs = buildQuery();
-  const url = `${API}/api/despesas${qs ? '?' + qs : ''}`;
-
-  fetchWithRetry(url)
-    .then(r => r.json())
-    .then(list => {
-      // Armazena todas as despesas em memória para filtragem no cliente
-      allDespesas = list;
-      
-      // Aplicar filtros (se houver)
-      if ((fFornecedor && fFornecedor.value.trim()) || 
-          (fValor && fValor.value.trim()) || 
-          (fDataInicio && fDataInicio.value) || 
-          (fDataFim && fDataFim.value)) {
-        aplicarFiltros();
-      } else {
-        // Se não houver filtros adicionais, mostra todas as despesas
-        renderDespesas(list);
-        
-        // Só mostra cards de resumo se tiver filtro de data
-        const cardsContainer = document.querySelector('.cards-container');
-        if ((fDataInicio && fDataInicio.value) || (fDataFim && fDataFim.value)) {
-          atualizarResumo(list);
-          if (cardsContainer) cardsContainer.classList.remove('hidden');
-        } else {
-          if (cardsContainer) cardsContainer.classList.add('hidden');
-        }
-      }
-    })
-    .catch(err => {
-      console.error(err);
-      if (tblBody) tblBody.innerHTML = '<tr><td colspan="9">Erro ao carregar dados</td></tr>';
-    });
-}
-
-// Helper function to retry API calls
-async function fetchWithRetry(url, options = {}, retries = 3, delay = 1000) {
   try {
-    const response = await fetch(url, options);
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
-    }
-    return response;
+    // Tenta buscar dados do backend
+    const response = await utils.fetchWithRetry(`${API}/api/despesas`);
+    const data = await response.json();
+    
+    // Atualiza a lista completa
+    allDespesas = data;
+    
+    // Aplica filtros iniciais e renderiza
+    aplicarFiltros();
+    
+    if (statusEl) statusEl.textContent = '';
   } catch (error) {
-    if (retries <= 1) throw error;
-    console.warn(`Retrying fetch to ${url}. Attempts left: ${retries-1}`);
-    await new Promise(resolve => setTimeout(resolve, delay));
-    return fetchWithRetry(url, options, retries - 1, delay);
+    console.error('Erro ao carregar despesas:', error);
+    if (statusEl) statusEl.textContent = 'Erro ao carregar dados. Tente novamente mais tarde.';
+    
+    if (tblBody) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td colspan="8" class="text-center text-danger">
+        Erro ao carregar dados. Tente novamente mais tarde.
+      </td>`;
+      tblBody.appendChild(tr);
+    }
   }
 }
 
+// Função para criar ou atualizar uma despesa
+async function salvarDespesa(despesa) {
+  try {
+    const isUpdate = despesa.id !== undefined;
+    const url = isUpdate 
+      ? `${API}/api/despesas/${despesa.id}` 
+      : `${API}/api/despesas`;
+    
+    const options = {
+      method: isUpdate ? 'PUT' : 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(despesa)
+    };
+    
+    const response = await utils.fetchWithRetry(url, options);
+    
+    if (!response.ok) {
+      throw new Error(`Erro ao ${isUpdate ? 'atualizar' : 'criar'} despesa: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Erro ao ${despesa.id ? 'atualizar' : 'criar'} despesa:`, error);
+    throw error;
+  }
+}
+
+// Função para inicializar eventos de teclado nos modais de pagamento
+function setupKeyboardEvents() {
+  document.addEventListener('keydown', event => {
+    // Se a tecla não for Enter, ignoramos
+    if (event.key !== 'Enter') return;
+    
+    // Verificar qual modal está ativo
+    const bankModal = document.getElementById('bankModal');
+    const methodModal = document.getElementById('methodModal');
+    
+    // Se o modal de banco estiver ativo, simula o clique no botão de confirmar banco
+    if (bankModal && bankModal.classList.contains('active') && selectedBank) {
+      event.preventDefault();
+      const confirmBtn = document.getElementById('confirmBank');
+      if (confirmBtn) confirmBtn.click();
+    } 
+    // Se o modal de método estiver ativo, simula o clique no botão de confirmar método
+    else if (methodModal && methodModal.classList.contains('active') && selectedMethod) {
+      event.preventDefault();
+      const confirmBtn = document.getElementById('confirmMethod');
+      if (confirmBtn) confirmBtn.click();
+    }
+  });
+}
+
+// Exporta as funções necessárias
 module.exports.init = init;
+module.exports.salvarDespesa = salvarDespesa;
