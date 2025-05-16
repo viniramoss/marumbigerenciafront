@@ -51,7 +51,11 @@ function init() {
         prefillHoje();            // nova data = hoje
         form.unidade.value = unidadeSel;
         form.tipo.value    = tipoSel;
-        form.fornecedor.focus();
+        
+        // Foca no campo de data em vez do fornecedor
+        if (form.data) {
+          focusAndSelectDateField(form.data);
+        }
 
       } catch (err) {
         console.error(err);
@@ -66,6 +70,21 @@ function init() {
     if (form && form.data) {
       form.data.value = new Date().toISOString().slice(0, 10);
     }
+  }
+  
+  // Função para focar e selecionar o campo de data
+  function focusAndSelectDateField(dateField) {
+    setTimeout(() => {
+      dateField.focus();
+      // Se for um campo de texto, selecionamos todo o conteúdo
+      if (dateField.type === 'text') {
+        dateField.select();
+      } 
+      // Se for um campo de data do tipo 'date', tentamos selecionar o conteúdo
+      else if (dateField.type === 'date') {
+        dateField.click(); // Abre o seletor de data em alguns navegadores
+      }
+    }, 10);
   }
 
   function money(v) {
