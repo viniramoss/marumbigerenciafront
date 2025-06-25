@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Folha de Pagamento • Marumbi Gerente</title>
+  <link rel="stylesheet" href="../preload-style.css" />
+  <link rel="stylesheet" href="../styles.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css" />
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#181a1b" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)">
+</head>
+<body>
+  <aside class="sidebar">
+  <h1 class="brand">Marumbi<br />Gerente</h1>
+  <nav>
+    <ul>
+      <li><a href="dashboard.html" class="">Dashboard</a></li>
+      <li><a href="cadastro.html"  class="">Lançar Entrada</a></li>
+      <li><a href="despesas.html"  class="">Lançar Despesa</a></li>
+      <li><a href="relatorio.html" class="">Relatório Boletos</a></li>
+      <li><a href="folha-pagamento.html" class="active">Folha de Pagamento</a></li>
+      <li><a href="graficos.html"  class="">Gráficos</a></li>
+      <li><a href="settings.html"  class="">Configurações</a></li>
+    </ul>
+  </nav>
+</aside>
+
+  <main id="main-content">
+    <section class="page visible">
+  <h2>Folha de Pagamento</h2>
+  
+  <!-- Cards de resumo minimalista -->
+  <div class="summary-bar">
+    <div class="summary-item">
+      <span class="summary-label">UN1:</span>
+      <span class="summary-value" id="salario-un1">R$ 0,00</span>
+    </div>
+    <div class="summary-divider">|</div>
+    <div class="summary-item">
+      <span class="summary-label">UN2:</span>
+      <span class="summary-value" id="salario-un2">R$ 0,00</span>
+    </div>
+    <div class="summary-divider">|</div>
+    <div class="summary-item total">
+      <span class="summary-label">Total:</span>
+      <span class="summary-value" id="salario-total">R$ 0,00</span>
+    </div>
+  </div>
+  
+  <!-- Filtros e ferramentas -->
+  <div class="toolbar">
+    <label>Loja
+      <select id="f-loja">
+        <option value="all">Todas</option>
+        <option value="UN1">Marumbi I</option>
+        <option value="UN2">Marumbi II</option>
+      </select>
+    </label>
+    
+    <label>Tipo
+      <select id="f-tipo">
+        <option value="all">Todos</option>
+        <option value="funcionarios">Funcionários</option>
+        <option value="encargos">Encargos</option>
+        <option value="outros">Outros</option>
+      </select>
+    </label>
+    
+    <label>Nome/Descrição
+      <input type="text" id="f-nome" placeholder="Buscar..." />
+    </label>
+    
+    <button id="btn-limpar-filtros" class="btn btn-filtro">Limpar Filtros</button>
+  </div>
+  
+  <!-- Botões de ação -->
+  <div class="action-buttons">
+    <button id="btn-adicionar-funcionario" class="btn btn-primary">
+      <i class="fas fa-user-plus"></i> Adicionar Funcionário
+    </button>
+    <button id="btn-adicionar-encargo" class="btn btn-secondary">
+      <i class="fas fa-calculator"></i> Adicionar Encargo
+    </button>
+    <button id="btn-adicionar-outro" class="btn btn-tertiary">
+      <i class="fas fa-gift"></i> Adicionar Outros
+    </button>
+  </div>
+  
+  <!-- Grid com três colunas -->
+  <div class="payroll-grid">
+    <!-- Coluna Funcionários -->
+    <div class="payroll-column" id="funcionarios-column">
+      <h3>
+        <i class="fas fa-users"></i> Funcionários
+        <span class="column-count" id="funcionarios-count">0</span>
+      </h3>
+      <div class="payroll-list" id="funcionarios-list">
+        <!-- Funcionários serão inseridos aqui -->
+      </div>
+    </div>
+    
+    <!-- Coluna Encargos -->
+    <div class="payroll-column" id="encargos-column">
+      <h3>
+        <i class="fas fa-calculator"></i> Encargos
+        <span class="column-count" id="encargos-count">0</span>
+      </h3>
+      <div class="payroll-list" id="encargos-list">
+        <!-- Encargos serão inseridos aqui -->
+      </div>
+    </div>
+    
+    <!-- Coluna Outros -->
+    <div class="payroll-column" id="outros-column">
+      <h3>
+        <i class="fas fa-gift"></i> Outros
+        <span class="column-count" id="outros-count">0</span>
+      </h3>
+      <div class="payroll-list" id="outros-list">
+        <!-- Outros serão inseridos aqui -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabela (mantida para compatibilidade, mas ficará oculta inicialmente) -->
+  <table id="tblFuncionarios" style="display: none;">
+    <thead>
+      <tr>
+        <th>Nome</th>
+        <th>Salário</th>
+        <th>Loja</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</section>
+
+  <!-- Modal para adicionar/editar funcionário -->
+  <div id="funcionarioModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="funcionarioModalTitle">Adicionar Funcionário</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label>Nome:
+            <input type="text" id="funcionarioNome" placeholder="Digite o nome do funcionário..." required>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Salário:
+            <input type="number" id="funcionarioSalario" placeholder="0,00" step="0.01" min="0" required>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Loja:
+            <select id="funcionarioLoja" required>
+              <option value="">Selecione a loja</option>
+              <option value="UN1">Marumbi I</option>
+              <option value="UN2">Marumbi II</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-cancel">Cancelar</button>
+        <button class="btn btn-confirm" id="salvarFuncionario">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de confirmação para exclusão -->
+  <div id="deleteModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Confirmar exclusão</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Tem certeza que deseja excluir este funcionário?</p>
+        <p>Esta ação não pode ser desfeita.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-cancel">Cancelar</button>
+        <button class="btn btn-danger" id="confirmDelete">Excluir</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para adicionar/editar encargos -->
+  <div id="encargoModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="encargoModalTitle">Adicionar Encargo</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label>Tipo de Encargo:
+            <select id="encargoTipo" required>
+              <option value="">Selecione...</option>
+              <option value="INSS">INSS</option>
+              <option value="FGTS">FGTS</option>
+              <option value="VALE_TRANSPORTE">Vale Transporte</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Valor:
+            <input type="number" id="encargoValor" step="0.01" min="0" placeholder="0,00" required />
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Loja:
+            <select id="encargoLoja" required>
+              <option value="">Selecione...</option>
+              <option value="UN1">Marumbi I</option>
+              <option value="UN2">Marumbi II</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Mês/Ano:
+            <input type="month" id="encargoMesAno" required />
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Observações:
+            <textarea id="encargoObservacoes" rows="3" placeholder="Observações opcionais..."></textarea>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-cancel">Cancelar</button>
+        <button class="btn btn-confirm" id="salvarEncargo">Salvar</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Modal para adicionar/editar outros -->
+  <div id="outroModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="outroModalTitle">Adicionar Outros</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label>Tipo:
+            <select id="outroTipo" required>
+              <option value="">Selecione...</option>
+              <option value="BONUS">Bônus</option>
+              <option value="FERIAS">Férias</option>
+              <option value="DESTAQUE">Destaque do Mês</option>
+              <option value="ABONO">Abono</option>
+              <option value="AJUDA_CUSTO">Ajuda de Custo</option>
+              <option value="OUTROS">Outros</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Descrição:
+            <input type="text" id="outroDescricao" placeholder="Descrição detalhada..." required />
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Valor:
+            <input type="number" id="outroValor" step="0.01" min="0" placeholder="0,00" required />
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Funcionário (opcional):
+            <select id="outroFuncionario">
+              <option value="">Geral</option>
+              <!-- Preenchido dinamicamente -->
+            </select>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Loja:
+            <select id="outroLoja" required>
+              <option value="">Selecione...</option>
+              <option value="UN1">Marumbi I</option>
+              <option value="UN2">Marumbi II</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Mês/Ano:
+            <input type="month" id="outroMesAno" required />
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Observações:
+            <textarea id="outroObservacoes" rows="3" placeholder="Observações opcionais..."></textarea>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-cancel">Cancelar</button>
+        <button class="btn btn-confirm" id="salvarOutro">Salvar</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Modal de confirmação de exclusão para encargos -->
+  <div id="deleteEncargoModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Confirmar Exclusão</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Tem certeza que deseja excluir este encargo?</p>
+        <p>Esta ação não pode ser desfeita.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-cancel">Cancelar</button>
+        <button class="btn btn-danger" id="confirmDeleteEncargo">Excluir</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Modal de confirmação de exclusão para outros -->
+  <div id="deleteOutroModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Confirmar Exclusão</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Tem certeza que deseja excluir este item?</p>
+        <p>Esta ação não pode ser desfeita.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-cancel">Cancelar</button>
+        <button class="btn btn-danger" id="confirmDeleteOutro">Excluir</button>
+      </div>
+    </div>
+  </div>
+
+  </main>
+  <script src="../renderer.js"></script>
+</body>
+</html> 
