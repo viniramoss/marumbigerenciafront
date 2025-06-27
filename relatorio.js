@@ -15,6 +15,8 @@ let lastSelectedBank = localStorage.getItem('lastSelectedBank');
 let lastSelectedMethod = localStorage.getItem('lastSelectedMethod');
 
 let allDespesas = []; // Armazenar todas as despesas para filtrar no cliente
+let allDespesasFixas = []; // Armazenar todas as despesas fixas
+let currentDespesaFixaId = null; // ID da despesa fixa atual para retiradas
 
 const API = API_URL;
 
@@ -112,6 +114,9 @@ function init() {
     
     // Configurar eventos de teclado para os modais
     setupKeyboardEvents();
+    
+    // Configurar eventos de despesas fixas
+    setupDespesasFixasEvents();
     
     firstRun = false;
   }
@@ -269,8 +274,21 @@ function slugify(text) {
 
 // Função para aplicar filtros nas despesas
 function aplicarFiltros() {
+  // Verificar se é filtro específico para despesas fixas
+  if (fTipo && fTipo.value === 'despesas-fixas') {
+    // Mostrar apenas despesas fixas
+    renderDespesasFixasOnly();
+    return;
+  }
+  
   if (allDespesas.length > 0) {
-    let filteredDespesas = [...allDespesas];
+    // Filtrar despesas excluindo as de retirada (DF-{id}-Retirada)
+    let filteredDespesas = allDespesas.filter(d => {
+      if (d.fornecedor && d.fornecedor.startsWith('DF-')) {
+        return false; // Exclui despesas de retirada da visualização
+      }
+      return true;
+    });
     
     // Filtro por unidade
     if (fUnid && fUnid.value !== 'all') {
@@ -279,7 +297,13 @@ function aplicarFiltros() {
     
     // Filtro por tipo
     if (fTipo && fTipo.value !== 'all') {
-      filteredDespesas = filteredDespesas.filter(d => d.tipo === fTipo.value);
+      filteredDespesas = filteredDespesas.filter(d => {
+        // Se filtro é 'boleto', excluir retiradas de despesas fixas
+        if (fTipo.value === 'boleto') {
+          return d.tipo === fTipo.value && !d.fornecedor.startsWith('DF-');
+        }
+        return d.tipo === fTipo.value;
+      });
     }
     
     // Filtro por status
@@ -658,7 +682,7 @@ function setupModalEvents() {
 }
 
 // Função para renderizar as despesas filtradas
-function renderDespesas(despesas) {
+async function renderDespesas(despesas) {
   if (!tblBody) return;
   
   tblBody.innerHTML = '';
@@ -668,12 +692,97 @@ function renderDespesas(despesas) {
     return;
   }
   
-  // Ordenar por data (mais recente primeiro)
-  despesas.sort((a, b) => new Date(a.data) - new Date(b.data));
+  // Separar variáveis de boletos (excluindo retiradas de despesas fixas)
+  const variaveisOriginais = despesas.filter(d => d.tipo === 'variavel');
+  const boletos = despesas.filter(d => {
+    // Exclui variáveis e despesas de retirada (formato DF-*)
+    if (d.tipo === 'variavel') return false;
+    if (d.fornecedor && d.fornecedor.startsWith('DF-')) return false;
+    return true;
+  });
   
-  for (const d of despesas) {
+  console.log('Debug renderDespesas:');
+  console.log('Total despesas:', despesas.length);
+  console.log('Variáveis originais:', variaveisOriginais.length);
+  console.log('Boletos:', boletos.length);
+  console.log('Tipos encontrados:', [...new Set(despesas.map(d => d.tipo))]);
+  
+  // Ordenar por data (mais recente primeiro)
+  boletos.sort((a, b) => new Date(a.data) - new Date(b.data));
+  
+  // Se houver variáveis, buscar dados agrupados
+  let variaveisAgrupadas = [];
+  if (variaveisOriginais.length > 0) {
+    try {
+      variaveisAgrupadas = await buscarVariaveisAgrupadas();
+      console.log('Variáveis agrupadas encontradas:', variaveisAgrupadas);
+    } catch (error) {
+      console.error('Erro ao buscar variáveis agrupadas:', error);
+    }
+  }
+  
+  renderTodoOConteudo();
+  
+  function renderTodoOConteudo() {
+    tblBody.innerHTML = '';
+    
+    // Renderizar seção de boletos
+    if (boletos.length > 0) {
+      const headerBoletos = document.createElement('tr');
+      headerBoletos.className = 'section-header';
+      headerBoletos.innerHTML = `
+        <td colspan="9" style="background: var(--primary); color: white; font-weight: bold; text-align: center; padding: 12px;">
+          📄 BOLETOS E DESPESAS (${boletos.length} itens)
+        </td>`;
+      tblBody.appendChild(headerBoletos);
+      
+      boletos.forEach(d => renderLinha(d, false));
+    }
+    
+    // Renderizar seção de despesas fixas
+    if (allDespesasFixas.length > 0) {
+      const headerDespesasFixas = document.createElement('tr');
+      headerDespesasFixas.className = 'section-header despesas-fixas-header';
+      headerDespesasFixas.innerHTML = `
+        <td colspan="9" style="background: #17a2b8; color: white; font-weight: bold; text-align: center; padding: 12px;">
+          💳 DESPESAS FIXAS (${allDespesasFixas.length} itens)
+        </td>`;
+      tblBody.appendChild(headerDespesasFixas);
+      
+      const despesasFixasRow = document.createElement('tr');
+      despesasFixasRow.innerHTML = `
+        <td colspan="9" style="padding: 0; border: none;">
+          ${renderDespesasFixas()}
+        </td>`;
+      tblBody.appendChild(despesasFixasRow);
+    }
+    
+    // Renderizar seção de variáveis agrupadas
+    if (variaveisAgrupadas.length > 0) {
+      const headerVariaveis = document.createElement('tr');
+      headerVariaveis.className = 'section-header';
+      headerVariaveis.innerHTML = `
+        <td colspan="9" style="background: #28a745; color: white; font-weight: bold; text-align: center; padding: 12px;">
+          💰 DESPESAS VARIÁVEIS AGRUPADAS (${variaveisAgrupadas.length} grupos)
+        </td>`;
+      tblBody.appendChild(headerVariaveis);
+      
+      variaveisAgrupadas.forEach(d => renderLinha(d, true));
+    }
+    
+    // Se não há nenhuma despesa
+    if (boletos.length === 0 && variaveisAgrupadas.length === 0) {
+      tblBody.innerHTML = '<tr><td colspan="9">Nenhuma despesa encontrada</td></tr>';
+    }
+  }
+  
+  // Função auxiliar para renderizar uma linha
+  function renderLinha(d, isVariavelAgrupada = false) {
     const tr = document.createElement('tr');
     tr.className = d.pago ? 'pago' : 'nao-pago';
+    if (isVariavelAgrupada) {
+      tr.classList.add('variavel-agrupada');
+    }
     tr.setAttribute('data-id', d.id);
 
     const dataFmt = new Date(d.data + 'T00:00').toLocaleDateString('pt-BR');
@@ -696,83 +805,173 @@ function renderDespesas(despesas) {
       }
     }
 
+    // Para variáveis agrupadas, mostrar informação adicional
+    const tipoDisplay = isVariavelAgrupada ? 
+      `${d.tipo} (${d.quantidade || 1}x)` : 
+      d.tipo;
+
     tr.innerHTML = `
       <td>${dataFmt}</td>
       <td>${fornecedorHtml}</td>
-      <td class="tipoPagamento">${d.tipo}</td>
+      <td class="tipoPagamento">${tipoDisplay}</td>
       <td>${d.unidade}</td>
       <td class="valor">R$ ${valorFmt}</td>
       <td>${d.banco || '-'}</td>
       <td>${d.metodo || '-'}</td>
-      <td><input type="checkbox" ${d.pago ? 'checked' : ''}></td>
+      <td><input type="checkbox" ${d.pago ? 'checked' : ''} ${isVariavelAgrupada ? 'disabled title="Variáveis são automaticamente pagas"' : ''}></td>
       <td>
-        <button class="btn-delete" title="Excluir">
-          <i class="fas fa-trash-alt"></i>
-        </button>
+        ${isVariavelAgrupada ? 
+          '<button class="btn-delete-variavel" title="Excluir todas as variáveis deste fornecedor"><i class="fas fa-trash-alt"></i></button>' : 
+          '<button class="btn-delete" title="Excluir"><i class="fas fa-trash-alt"></i></button>'
+        }
       </td>`;
 
-    /* alterna pago / não pago com modal */
-    tr.querySelector('input').addEventListener('change', e => {
-      if (e.target.checked) {
-        // Se estiver marcando como pago, mostra modal de seleção de banco
-        currentDespesaId = d.id;
-        const bankModal = document.getElementById('bankModal');
-        
-        // Pre-selecionar o último banco utilizado, se existir
-        if (bankModal && lastSelectedBank) {
-          const bankOptions = bankModal.querySelectorAll('.payment-option');
-          bankOptions.forEach(option => {
-            if (option.getAttribute('data-label') === lastSelectedBank) {
-              option.classList.add('selected');
-              selectedBank = lastSelectedBank;
-            }
-          });
-        }
-        
-        if (bankModal) {
-          bankModal.classList.add('active');
+    // Eventos para variáveis agrupadas
+    if (isVariavelAgrupada) {
+      const deleteBtn = tr.querySelector('.btn-delete-variavel');
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', () => {
+          const fornecedor = d.fornecedor;
+          const quantidade = d.quantidade || 1;
           
-          // Focus no modal para permitir navegação por teclado
-          setTimeout(() => {
-            const confirmBtn = document.getElementById('confirmBank');
-            if (confirmBtn && selectedBank) confirmBtn.focus();
-          }, 100);
-        }
-      } else {
-        // Se estiver desmarcando, apenas atualiza o status
-        utils.fetchWithRetry(`${API}/api/despesas/${d.id}/pago?valor=false`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({})
-        })
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`Erro ${response.status}`);
-          }
-          return response.json();
-        })
-        .then(() => render())
-        .catch(error => {
-          console.error('Erro ao desmarcar como pago:', error);
-          utils.showAlert('Erro', 'Falha ao desmarcar pagamento - veja o console');
-          render(); // Re-renderiza para restaurar o estado anterior
+          utils.showConfirm(
+            'Confirmar exclusão', 
+            `Tem certeza que deseja excluir TODAS as ${quantidade} despesas variáveis de "${fornecedor}"?`, 
+            async () => {
+              try {
+                // Buscar todas as despesas variáveis deste fornecedor
+                const response = await utils.fetchWithRetry(`${API}/api/despesas`);
+                const todasDespesas = await response.json();
+                
+                const variaveisParaExcluir = todasDespesas.filter(despesa => 
+                  despesa.tipo === 'variavel' && 
+                  despesa.fornecedor === fornecedor
+                );
+                
+                // Excluir uma por uma
+                const exclusoes = variaveisParaExcluir.map(despesa => 
+                  utils.fetchWithRetry(`${API}/api/despesas/${despesa.id}`, {
+                    method: 'DELETE'
+                  })
+                );
+                
+                await Promise.all(exclusoes);
+                
+                // Recarregar a página
+                render();
+                
+                utils.showAlert('Sucesso', `${variaveisParaExcluir.length} despesas variáveis de "${fornecedor}" foram excluídas.`);
+                
+              } catch (error) {
+                console.error('Erro ao excluir variáveis:', error);
+                utils.showAlert('Erro', 'Falha ao excluir despesas variáveis - veja o console');
+              }
+            }
+          );
         });
       }
-    });
-    
-    // Evento para o botão de exclusão
-    tr.querySelector('.btn-delete').addEventListener('click', () => {
-      currentDespesaId = d.id;
-      const deleteModal = document.getElementById('deleteModal');
-      if (deleteModal) deleteModal.classList.add('active');
-    });
+    }
+    // Eventos apenas para despesas não agrupadas
+    else {
+      /* alterna pago / não pago com modal */
+      tr.querySelector('input').addEventListener('change', e => {
+        if (e.target.checked) {
+          // Se estiver marcando como pago, mostra modal de seleção de banco
+          currentDespesaId = d.id;
+          const bankModal = document.getElementById('bankModal');
+          
+          if (bankModal) {
+            const previousSelected = bankModal.querySelector('.payment-option.selected');
+            if (previousSelected) {
+              previousSelected.classList.remove('selected');
+            }
+            
+            if (lastSelectedBank) {
+              const targetOption = bankModal.querySelector(`[data-label="${lastSelectedBank}"]`);
+              if (targetOption) {
+                targetOption.classList.add('selected');
+                selectedBank = lastSelectedBank;
+              }
+            }
+            
+            bankModal.classList.add('active');
+          }
+        } else {
+          // Se estiver desmarcando, apenas atualiza o status
+          utils.fetchWithRetry(`${API}/api/despesas/${d.id}/pago?valor=false`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+          })
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`Erro ${response.status}`);
+            }
+            return response.json();
+          })
+          .then(() => render())
+          .catch(error => {
+            console.error('Erro ao desmarcar como pago:', error);
+            utils.showAlert('Erro', 'Falha ao desmarcar pagamento - veja o console');
+            render();
+          });
+        }
+      });
+      
+      // Evento para o botão de exclusão
+      const deleteBtn = tr.querySelector('.btn-delete');
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', () => {
+          currentDespesaId = d.id;
+          const deleteModal = document.getElementById('deleteModal');
+          if (deleteModal) deleteModal.classList.add('active');
+        });
+      }
+    }
 
     tblBody.appendChild(tr);
+  }
+
+  // Função para buscar variáveis agrupadas
+  async function buscarVariaveisAgrupadas() {
+    try {
+      const params = new URLSearchParams();
+      
+      // Adicionar filtros de unidade e data se aplicáveis
+      if (fUnid && fUnid.value && fUnid.value !== 'all') {
+        params.append('unidade', fUnid.value);
+      }
+      
+      if (fDataInicio && fDataInicio.value) {
+        params.append('dataInicio', fDataInicio.value);
+      }
+      
+      if (fDataFim && fDataFim.value) {
+        params.append('dataFim', fDataFim.value);
+      }
+      
+      const url = `${API}/api/despesas/variaveis/agrupadas?${params.toString()}`;
+      const response = await utils.fetchWithRetry(url);
+      const variaveisAgrupadasRaw = await response.json();
+      
+      // Filtrar despesas de retirada (formato DF-*)
+      variaveisAgrupadas = variaveisAgrupadasRaw.filter(d => {
+        if (d.fornecedor && d.fornecedor.startsWith('DF-')) {
+          return false; // Exclui despesas de retirada
+        }
+        return true;
+      });
+      
+      return variaveisAgrupadas;
+    } catch (error) {
+      console.error('Erro ao buscar variáveis agrupadas:', error);
+      return [];
+    }
   }
 }
 
 // Função para atualizar o resumo de valores
-function atualizarResumo(despesas) {
+async function atualizarResumo(despesas) {
   const cardsContainer = document.querySelector('.cards-container');
   
   if (!despesas || !despesas.length) {
@@ -789,9 +988,55 @@ function atualizarResumo(despesas) {
   // Remove classe disabled se houver despesas
   if (cardsContainer) cardsContainer.classList.remove('disabled');
   
+  // Separar variáveis de boletos (excluindo retiradas de despesas fixas)
+  const variaveisOriginais = despesas.filter(d => d.tipo === 'variavel');
+  const boletos = despesas.filter(d => {
+    // Exclui variáveis e despesas de retirada (formato DF-*)
+    if (d.tipo === 'variavel') return false;
+    if (d.fornecedor && d.fornecedor.startsWith('DF-')) return false;
+    return true;
+  });
+  
+  // Buscar variáveis agrupadas se necessário
+  let variaveisAgrupadas = [];
+  if (variaveisOriginais.length > 0) {
+    try {
+      const params = new URLSearchParams();
+      
+      if (fUnid && fUnid.value && fUnid.value !== 'all') {
+        params.append('unidade', fUnid.value);
+      }
+      
+      if (fDataInicio && fDataInicio.value) {
+        params.append('dataInicio', fDataInicio.value);
+      }
+      
+      if (fDataFim && fDataFim.value) {
+        params.append('dataFim', fDataFim.value);
+      }
+      
+      const url = `${API}/api/despesas/variaveis/agrupadas?${params.toString()}`;
+      const response = await utils.fetchWithRetry(url);
+      const variaveisAgrupadasRaw = await response.json();
+      
+      // Filtrar despesas de retirada (formato DF-*)
+      variaveisAgrupadas = variaveisAgrupadasRaw.filter(d => {
+        if (d.fornecedor && d.fornecedor.startsWith('DF-')) {
+          return false; // Exclui despesas de retirada
+        }
+        return true;
+      });
+    } catch (error) {
+      console.error('Erro ao buscar variáveis para resumo:', error);
+    }
+  }
+  
+  // Combinar boletos e variáveis agrupadas para cálculo
+  const todasDespesas = [...boletos, ...variaveisAgrupadas];
+  
   // Calcula os valores
-  const total = despesas.reduce((sum, d) => sum + Number(d.valor), 0);
-  const pago = despesas
+  const total = todasDespesas.reduce((sum, d) => sum + Number(d.valor), 0);
+  const pago = todasDespesas
     .filter(d => d.pago)
     .reduce((sum, d) => sum + Number(d.valor), 0);
   const aPagar = total - pago;
@@ -811,12 +1056,10 @@ function atualizarResumo(despesas) {
     if (card) card.classList.remove('has-value');
   });
   
-  // Adiciona classes após um pequeno delay para disparar a animação
-  setTimeout(() => {
-    if (total > 0 && cardTotal) cardTotal.classList.add('has-value');
-    if (pago > 0 && cardPago) cardPago.classList.add('has-value');
-    if (aPagar > 0 && cardAPagar) cardAPagar.classList.add('has-value');
-  }, 50);
+  // Adiciona classes imediatamente - SEM DELAY
+  if (total > 0 && cardTotal) cardTotal.classList.add('has-value');
+  if (pago > 0 && cardPago) cardPago.classList.add('has-value');
+  if (aPagar > 0 && cardAPagar) cardAPagar.classList.add('has-value');
   
   // Atualiza a classe com base na data selecionada
   if (fDataInicio && fDataInicio.value && (!fDataFim || !fDataFim.value)) {
@@ -839,8 +1082,12 @@ async function render() {
   
   try {
     // Tenta buscar dados do backend
-    const response = await utils.fetchWithRetry(`${API}/api/despesas`);
-    const data = await response.json();
+    const [despesasResponse] = await Promise.all([
+      utils.fetchWithRetry(`${API}/api/despesas`),
+      buscarDespesasFixas() // Buscar despesas fixas em paralelo
+    ]);
+    
+    const data = await despesasResponse.json();
     
     // Atualiza a lista completa
     allDespesas = data;
@@ -917,6 +1164,437 @@ function setupKeyboardEvents() {
   });
 }
 
+/* ===== SISTEMA DE DESPESAS FIXAS ===== */
+
+// Função para buscar despesas fixas do mês atual
+async function buscarDespesasFixas(mesAno = null) {
+  try {
+    if (!mesAno) {
+      const agora = new Date();
+      mesAno = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`;
+    }
+    
+    const response = await utils.fetchWithRetry(`${API}/api/despesas-fixas?mesAno=${mesAno}`);
+    const despesasFixas = await response.json();
+    
+    // Buscar resumos de cada despesa fixa
+    const despesasComResumo = await Promise.all(
+      despesasFixas.map(async (df) => {
+        try {
+          const resumoResponse = await utils.fetchWithRetry(`${API}/api/despesas-fixas/${df.id}/resumo`);
+          const resumo = await resumoResponse.json();
+          return resumo;
+        } catch (error) {
+          console.error('Erro ao buscar resumo da despesa fixa:', df.id, error);
+          return {
+            ...df,
+            valorRetirado: 0,
+            valorRestante: df.valorTotal,
+            quantidadeRetiradas: 0
+          };
+        }
+      })
+    );
+    
+    allDespesasFixas = despesasComResumo;
+    return despesasComResumo;
+    
+  } catch (error) {
+    console.error('Erro ao buscar despesas fixas:', error);
+    allDespesasFixas = [];
+    return [];
+  }
+}
+
+// Função para abrir modal de cadastro de despesa fixa
+function abrirModalDespesaFixa() {
+  const modal = document.getElementById('despesaFixaModal');
+  const nomeInput = document.getElementById('despesaFixaNome');
+  const unidadeSelect = document.getElementById('despesaFixaUnidade');
+  const valorInput = document.getElementById('despesaFixaValor');
+  
+  // Limpar campos
+  if (nomeInput) nomeInput.value = '';
+  if (unidadeSelect) unidadeSelect.value = '';
+  if (valorInput) valorInput.value = '';
+  
+  if (modal) {
+    modal.classList.add('active');
+    if (nomeInput) nomeInput.focus();
+  }
+}
+
+// Função para salvar despesa fixa
+async function salvarDespesaFixa() {
+  const nomeInput = document.getElementById('despesaFixaNome');
+  const unidadeSelect = document.getElementById('despesaFixaUnidade');
+  const valorInput = document.getElementById('despesaFixaValor');
+  
+  const nome = nomeInput?.value?.trim();
+  const unidade = unidadeSelect?.value;
+  const valor = parseFloat(valorInput?.value || '0');
+  
+  if (!nome || !unidade || valor <= 0) {
+    utils.showAlert('Erro', 'Todos os campos são obrigatórios e o valor deve ser maior que zero.');
+    return;
+  }
+  
+  try {
+    const despesaFixa = {
+      nome: nome,
+      unidade: unidade,
+      valorTotal: valor
+    };
+    
+    const response = await utils.fetchWithRetry(`${API}/api/despesas-fixas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(despesaFixa)
+    });
+    
+    if (response.ok) {
+      utils.showAlert('Sucesso', 'Despesa fixa cadastrada com sucesso!');
+      document.getElementById('despesaFixaModal')?.classList.remove('active');
+      
+      // Recarregar dados
+      await buscarDespesasFixas();
+      render();
+    } else {
+      throw new Error('Erro ao salvar');
+    }
+  } catch (error) {
+    console.error('Erro ao salvar despesa fixa:', error);
+    utils.showAlert('Erro', 'Erro ao salvar despesa fixa. Tente novamente.');
+  }
+}
+
+// Função para abrir modal de retirada
+function abrirModalRetirada(despesaFixaId) {
+  const despesaFixa = allDespesasFixas.find(df => df.id === despesaFixaId);
+  if (!despesaFixa) return;
+  
+  currentDespesaFixaId = despesaFixaId;
+  
+  const modal = document.getElementById('retirarDespesaFixaModal');
+  const title = document.getElementById('retirarDespesaFixaModalTitle');
+  const descricaoInput = document.getElementById('retirarDespesaFixaDescricao');
+  const valorInput = document.getElementById('retirarDespesaFixaValor');
+  const dataInput = document.getElementById('retirarDespesaFixaData');
+  const infoBox = document.getElementById('despesaFixaInfo');
+  
+  // Preencher informações
+  if (title) title.textContent = `Retirar de: ${despesaFixa.nome}`;
+  
+  if (infoBox) {
+    infoBox.innerHTML = `
+      <h4>${despesaFixa.nome} - ${despesaFixa.unidade}</h4>
+      <p><strong>Valor Total:</strong> R$ ${despesaFixa.valorTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+      <p><strong>Valor Retirado:</strong> R$ ${despesaFixa.valorRetirado.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+      <p><strong>Valor Restante:</strong> R$ ${despesaFixa.valorRestante.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+      <p><strong>Retiradas:</strong> ${despesaFixa.quantidadeRetiradas}</p>
+    `;
+  }
+  
+  // Limpar campos
+  if (descricaoInput) descricaoInput.value = '';
+  if (valorInput) {
+    valorInput.value = '';
+    valorInput.max = despesaFixa.valorRestante;
+  }
+  if (dataInput) dataInput.value = '';
+  
+  if (modal) {
+    modal.classList.add('active');
+    if (descricaoInput) descricaoInput.focus();
+  }
+}
+
+// Função para confirmar retirada
+async function confirmarRetirada() {
+  const valorInput = document.getElementById('retirarDespesaFixaValor');
+  const dataInput = document.getElementById('retirarDespesaFixaData');
+  
+  const valor = parseFloat(valorInput?.value || '0');
+  const data = dataInput?.value;
+  
+  if (valor <= 0 || !data) {
+    utils.showAlert('Erro', 'Valor e data são obrigatórios.');
+    return;
+  }
+  
+  const despesaFixa = allDespesasFixas.find(df => df.id === currentDespesaFixaId);
+  if (!despesaFixa) return;
+  
+  if (valor > despesaFixa.valorRestante) {
+    utils.showAlert('Erro', `Valor superior ao restante. Máximo: R$ ${despesaFixa.valorRestante.toFixed(2)}`);
+    return;
+  }
+  
+  try {
+    // Criar despesa normal com referência à despesa fixa
+    const despesa = {
+      fornecedor: `DF-${currentDespesaFixaId}-Retirada`,
+      valor: valor,
+      data: data,
+      unidade: despesaFixa.unidade,
+      tipo: 'variavel',
+      pago: true,
+      banco: 'N/A',
+      metodo: 'dinheiro'
+    };
+    
+    const response = await utils.fetchWithRetry(`${API}/api/despesas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(despesa)
+    });
+    
+    if (response.ok) {
+      utils.showAlert('Sucesso', 'Valor retirado com sucesso!');
+      document.getElementById('retirarDespesaFixaModal')?.classList.remove('active');
+      
+      // Recarregar dados
+      await buscarDespesasFixas();
+      render();
+    } else {
+      throw new Error('Erro ao salvar');
+    }
+  } catch (error) {
+    console.error('Erro ao confirmar retirada:', error);
+    utils.showAlert('Erro', 'Erro ao confirmar retirada. Tente novamente.');
+  }
+}
+
+// Função para deletar despesa fixa
+async function deletarDespesaFixa(id) {
+  try {
+    const despesaFixa = allDespesasFixas.find(d => d.id === id);
+    if (!despesaFixa) return;
+
+    const confirmacao = confirm(`Tem certeza que deseja deletar a despesa fixa "${despesaFixa.nome}"?\n\nISTO IRÁ APAGAR PERMANENTEMENTE ESTA DESPESA FIXA.`);
+    
+    if (!confirmacao) return;
+
+    const response = await utils.fetchWithRetry(`${API}/api/despesas-fixas/${id}`, {
+      method: 'DELETE'
+    });
+
+    if (response.ok) {
+      utils.showAlert('Sucesso', 'Despesa fixa deletada com sucesso!');
+      
+      // Recarregar dados
+      await buscarDespesasFixas();
+      render();
+    } else {
+      utils.showAlert('Erro', 'Erro ao deletar despesa fixa');
+    }
+  } catch (error) {
+    console.error('Erro ao deletar despesa fixa:', error);
+    utils.showAlert('Erro', 'Erro ao deletar despesa fixa');
+  }
+}
+
+// Função para renderizar cards de despesas fixas
+function renderDespesasFixas() {
+  if (!allDespesasFixas.length) return '';
+  
+  const cardsHtml = allDespesasFixas.map(df => `
+    <div class="despesa-fixa-card" data-id="${df.id}">
+      <div class="despesa-fixa-header">
+        <h4>${df.nome}</h4>
+        <span class="despesa-fixa-unidade">${df.unidade}</span>
+      </div>
+      <div class="despesa-fixa-valores">
+        <div class="valor-item">
+          <span class="label">Total:</span>
+          <span class="valor">R$ ${df.valorTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+        </div>
+        <div class="valor-item">
+          <span class="label">Retirado:</span>
+          <span class="valor usado">R$ ${df.valorRetirado.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+        </div>
+        <div class="valor-item">
+          <span class="label">Restante:</span>
+          <span class="valor restante">R$ ${df.valorRestante.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+        </div>
+      </div>
+      <div class="despesa-fixa-actions">
+        <button class="btn btn-small btn-primary" onclick="abrirModalRetirada(${df.id})">
+          <i class="fas fa-minus-circle"></i> Retirar
+        </button>
+        <button class="btn btn-small btn-danger" onclick="deletarDespesaFixa(${df.id})" title="Deletar despesa fixa">
+          <i class="fas fa-trash"></i>
+        </button>
+        <span class="retiradas-count">${df.quantidadeRetiradas} retirada(s)</span>
+      </div>
+    </div>
+  `).join('');
+  
+  return `
+    <div class="despesas-fixas-section">
+      <h3><i class="fas fa-calculator"></i> DESPESAS FIXAS</h3>
+      <div class="despesas-fixas-container">
+        ${cardsHtml}
+      </div>
+    </div>
+  `;
+}
+
+// Função para renderizar apenas despesas fixas (filtro)
+function renderDespesasFixasOnly() {
+  if (!tblBody) return;
+  
+  tblBody.innerHTML = '';
+  
+  if (!allDespesasFixas.length) {
+    tblBody.innerHTML = '<tr><td colspan="9">Nenhuma despesa fixa encontrada</td></tr>';
+    return;
+  }
+  
+  // Filtrar por unidade se necessário
+  let despesasFixasFiltradas = [...allDespesasFixas];
+  if (fUnid && fUnid.value !== 'all') {
+    despesasFixasFiltradas = despesasFixasFiltradas.filter(df => df.unidade === fUnid.value);
+  }
+  
+  const headerDespesasFixas = document.createElement('tr');
+  headerDespesasFixas.className = 'section-header despesas-fixas-header';
+  headerDespesasFixas.innerHTML = `
+    <td colspan="9" style="background: #17a2b8; color: white; font-weight: bold; text-align: center; padding: 12px;">
+      💳 DESPESAS FIXAS (${despesasFixasFiltradas.length} itens)
+    </td>`;
+  tblBody.appendChild(headerDespesasFixas);
+  
+  const despesasFixasRow = document.createElement('tr');
+  despesasFixasRow.innerHTML = `
+    <td colspan="9" style="padding: 0; border: none;">
+      ${renderDespesasFixasCards(despesasFixasFiltradas)}
+    </td>`;
+  tblBody.appendChild(despesasFixasRow);
+  
+  // Atualizar resumo apenas com despesas fixas
+  atualizarResumoDespesasFixas(despesasFixasFiltradas);
+}
+
+// Função auxiliar para renderizar cards filtrados
+function renderDespesasFixasCards(despesasFixas) {
+  if (!despesasFixas.length) return '<p style="text-align: center; padding: 20px;">Nenhuma despesa fixa encontrada para os filtros aplicados.</p>';
+  
+  const cardsHtml = despesasFixas.map(df => `
+    <div class="despesa-fixa-card" data-id="${df.id}">
+      <div class="despesa-fixa-header">
+        <h4>${df.nome}</h4>
+        <span class="despesa-fixa-unidade">${df.unidade}</span>
+      </div>
+      <div class="despesa-fixa-valores">
+        <div class="valor-item">
+          <span class="label">Total:</span>
+          <span class="valor">R$ ${df.valorTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+        </div>
+        <div class="valor-item">
+          <span class="label">Retirado:</span>
+          <span class="valor usado">R$ ${df.valorRetirado.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+        </div>
+        <div class="valor-item">
+          <span class="label">Restante:</span>
+          <span class="valor restante">R$ ${df.valorRestante.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+        </div>
+      </div>
+      <div class="despesa-fixa-actions">
+        <button class="btn btn-small btn-primary" onclick="abrirModalRetirada(${df.id})">
+          <i class="fas fa-minus-circle"></i> Retirar
+        </button>
+        <button class="btn btn-small btn-danger" onclick="deletarDespesaFixa(${df.id})" title="Deletar despesa fixa">
+          <i class="fas fa-trash"></i>
+        </button>
+        <span class="retiradas-count">${df.quantidadeRetiradas} retirada(s)</span>
+      </div>
+    </div>
+  `).join('');
+  
+  return `
+    <div class="despesas-fixas-section">
+      <div class="despesas-fixas-container">
+        ${cardsHtml}
+      </div>
+    </div>
+  `;
+}
+
+// Função para atualizar resumo apenas com despesas fixas
+function atualizarResumoDespesasFixas(despesasFixas) {
+  const total = despesasFixas.reduce((sum, df) => sum + df.valorTotal, 0);
+  const retirado = despesasFixas.reduce((sum, df) => sum + df.valorRetirado, 0);
+  const restante = total - retirado;
+  
+  if (resumoTotal) resumoTotal.textContent = `R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+  if (resumoPago) resumoPago.textContent = `R$ ${retirado.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+  if (resumoAPagar) resumoAPagar.textContent = `R$ ${restante.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+  
+  // Atualizar títulos dos cards para despesas fixas
+  const cardTotal = document.getElementById('card-total');
+  const cardPago = document.getElementById('card-a-pagar');
+  
+  if (cardTotal) {
+    const heading = cardTotal.querySelector('h3');
+    if (heading) heading.textContent = 'Total Orçado';
+  }
+  
+  if (cardPago) {
+    const heading = cardPago.querySelector('h3');
+    if (heading) heading.textContent = 'Valor Restante';
+  }
+}
+
+// Função para configurar eventos das despesas fixas
+function setupDespesasFixasEvents() {
+  // Botão para cadastrar nova despesa fixa
+  const btnDespesaFixa = document.getElementById('btn-despesa-fixa');
+  if (btnDespesaFixa) {
+    btnDespesaFixa.addEventListener('click', abrirModalDespesaFixa);
+  }
+  
+  // Botão para salvar despesa fixa
+  const btnSalvarDespesaFixa = document.getElementById('salvarDespesaFixa');
+  if (btnSalvarDespesaFixa) {
+    btnSalvarDespesaFixa.addEventListener('click', salvarDespesaFixa);
+  }
+  
+  // Botão para confirmar retirada
+  const btnConfirmarRetirada = document.getElementById('confirmarRetiradaDespesaFixa');
+  if (btnConfirmarRetirada) {
+    btnConfirmarRetirada.addEventListener('click', confirmarRetirada);
+  }
+  
+  // Configurar modais para fechar
+  const despesaFixaModal = document.getElementById('despesaFixaModal');
+  const retirarModal = document.getElementById('retirarDespesaFixaModal');
+  
+  [despesaFixaModal, retirarModal].forEach(modal => {
+    if (!modal) return;
+    
+    const closeButtons = modal.querySelectorAll('.modal-close, .btn-cancel');
+    closeButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        modal.classList.remove('active');
+        currentDespesaFixaId = null;
+      });
+    });
+    
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.classList.remove('active');
+        currentDespesaFixaId = null;
+      }
+    });
+  });
+}
+
+// Tornar funções globais para uso inline
+window.abrirModalRetirada = abrirModalRetirada;
+window.deletarDespesaFixa = deletarDespesaFixa;
+
 // Exporta as funções necessárias
 module.exports.init = init;
 module.exports.salvarDespesa = salvarDespesa;
+module.exports.abrirModalRetirada = abrirModalRetirada;

@@ -4,16 +4,7 @@
 const { API_URL } = require('./env-config');
 const utils = require('./utils');
 
-// Script para aplicar tema imediatamente, mesmo antes da renderização do DOM
-(function() {
-  // Tenta executar o mais cedo possível
-  const saved = localStorage.getItem('theme');
-  const dark = saved ? saved === 'dark' : true; // default = escuro
-  if (dark) {
-    document.documentElement.classList.add('preload-dark');
-    document.body.classList.add('dark');
-  }
-})();
+// Aplicação inicial do tema é feita pelo renderer.js
 
 function applyTheme(dark) {
   // Verificações de segurança para evitar erros DOM
@@ -172,11 +163,7 @@ function showFeedback(message) {
     // Se o elemento já existe, apenas atualiza a mensagem
     feedbackEl.textContent = message;
     
-    // Reinicia a animação
-    feedbackEl.style.animation = 'none';
-    setTimeout(() => {
-      feedbackEl.style.animation = '';
-    }, 10);
+    // Atualiza visualmente o feedback
     
     // Oculta após alguns segundos
     clearTimeout(feedbackEl.timeout);

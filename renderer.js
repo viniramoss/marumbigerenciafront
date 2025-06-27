@@ -3,6 +3,16 @@ const dashboard = require('../dashboard.js');
 const cadastro  = require('../cadastro.js');
 const despesas  = require('../despesas.js');
 const relatorio = require('../relatorio.js');
+
+let folhaPagamento;
+try {
+  folhaPagamento = require('../folha-pagamento.js');
+  console.log('✅ RENDERER: folha-pagamento.js carregado com sucesso');
+} catch (error) {
+  console.error('❌ RENDERER: Erro ao carregar folha-pagamento.js:', error);
+  folhaPagamento = { init: () => console.error('❌ folha-pagamento não disponível') };
+}
+
 const config    = require('../config.js');   // só tema
 const utils     = require('../utils.js');    // utilitários gerais
 
@@ -41,14 +51,9 @@ async function initCurrentPage() {
     }
     currentPage = page;
     
-    // Limpa quaisquer timers pendentes
-    const allTimers = [];
-    const oldSetTimeout = window.setTimeout;
-    window.setTimeout = function() {
-      const id = oldSetTimeout.apply(this, arguments);
-      allTimers.push(id);
-      return id;
-    };
+    console.log('🚀 RENDERER: Inicializando página:', page);
+    
+    // Limpa possíveis conflitos de inicialização múltipla
     
     // Inicializa o sistema de modais globais
     utils.initModals();
@@ -59,28 +64,37 @@ async function initCurrentPage() {
     // Executa a inicialização com base na página
     switch (page) {
       case 'dashboard': 
+        console.log('🚀 RENDERER: Inicializando dashboard...');
         // Inicia com um pequeno atraso para permitir a renderização da UI primeiro
         setTimeout(() => dashboard.init(), 50);
         break;
       case 'cadastro': 
+        console.log('🚀 RENDERER: Inicializando cadastro...');
         cadastro.init();  
         break;
       case 'despesas': 
+        console.log('🚀 RENDERER: Inicializando despesas...');
         despesas.init();  
         break;
       case 'relatorio': 
+        console.log('🚀 RENDERER: Inicializando relatorio...');
         relatorio.init(); 
         break;
+      case 'folha-pagamento':
+        console.log('🚀 RENDERER: Inicializando folha-pagamento...');
+        folhaPagamento.init();
+        break;
       case 'graficos': 
+        console.log('🚀 RENDERER: Inicializando gráficos...');
         setTimeout(() => dashboard.init(), 50);
         break;
       case 'settings': 
+        console.log('🚀 RENDERER: Inicializando settings...');
         config.init();    
         break;      // tela de tema
+      default:
+        console.log('🚀 RENDERER: Página não reconhecida:', page);
     }
-    
-    // Restaura setTimeout original
-    window.setTimeout = oldSetTimeout;
   } catch (error) {
     console.error(`Erro ao inicializar página:`, error);
   } finally {

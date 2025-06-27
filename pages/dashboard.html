@@ -17,7 +17,8 @@
       <li><a href="dashboard.html" class="active">Dashboard</a></li>
       <li><a href="cadastro.html"  class="">Lançar Entrada</a></li>
       <li><a href="despesas.html"  class="">Lançar Despesa</a></li>
-      <li><a href="relatorio.html" class="">Relatório Boletos</a></li>
+      <li><a href="relatorio.html" class="">Boletos</a></li>
+      <li><a href="folha-pagamento.html" class="">Folha de Pagamento</a></li>
       <li><a href="graficos.html"  class="">Gráficos</a></li>
       <li><a href="settings.html"  class="">Configurações</a></li>
     </ul>
@@ -26,7 +27,14 @@
 
   <main id="main-content">
     <section class="page visible">
-      <h2>Resumo Financeiro</h2>
+      <div class="dashboard-header">
+        <h2>Resumo Financeiro</h2>
+        <div class="month-selector">
+          <button id="prev-month" class="month-nav-btn">‹</button>
+          <span id="current-month-display"></span>
+          <button id="next-month" class="month-nav-btn">›</button>
+        </div>
+      </div>
       <div class="dashboard-container">
         <div class="dashboard-cards">
           <div id="card-fluxo" class="dashboard-card">

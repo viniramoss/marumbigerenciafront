@@ -18,7 +18,8 @@
       <li><a href="dashboard.html" class="">Dashboard</a></li>
       <li><a href="cadastro.html"  class="">Lançar Entrada</a></li>
       <li><a href="despesas.html"  class="">Lançar Despesa</a></li>
-      <li><a href="relatorio.html" class="active">Relatório Boletos</a></li>
+      <li><a href="relatorio.html" class="active">Boletos</a></li>
+      <li><a href="folha-pagamento.html" class="">Folha de Pagamento</a></li>
       <li><a href="graficos.html"  class="">Gráficos</a></li>
       <li><a href="settings.html"  class="">Configurações</a></li>
     </ul>
@@ -61,6 +62,7 @@
         <option value="all">Todos</option>
         <option value="boleto">Boletos</option>
         <option value="variavel">Variáveis</option>
+        <option value="despesas-fixas">Despesas C</option>
       </select>
     </label>
     <label>Status
@@ -85,6 +87,9 @@
       <input type="date" id="f-data-fim" placeholder="dd/mm/aaaa" />
     </label>
     <button id="btn-limpar-filtros" class="btn btn-filtro">Limpar Filtros</button>
+    <button id="btn-despesa-fixa" class="btn btn-secondary bc" title="Cadastrar Despesa C">
+      <i class="fas fa-plus-circle"></i> Despesa C
+    </button>
   </div>
   
   <table id="tblPag">
@@ -178,6 +183,70 @@
       <div class="modal-footer">
         <button class="btn btn-cancel">Cancelar</button>
         <button class="btn btn-danger" id="confirmDelete">Excluir</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para cadastrar despesa fixa -->
+  <div id="despesaFixaModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="despesaFixaModalTitle">Cadastrar Despesa C</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label>Nome da Despesa:
+            <input type="text" id="despesaFixaNome" placeholder="Ex: Aluguel, Energia, etc..." required>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Unidade:
+            <select id="despesaFixaUnidade" required>
+              <option value="">Selecione...</option>
+              <option value="UN1">Marumbi I</option>
+              <option value="UN2">Marumbi II</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Valor Total Mensal:
+            <input type="number" id="despesaFixaValor" placeholder="0.00" step="0.01" min="0" required>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-cancel">Cancelar</button>
+        <button class="btn btn-confirm" id="salvarDespesaFixa">Cadastrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para retirar valor de despesa fixa -->
+  <div id="retirarDespesaFixaModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="retirarDespesaFixaModalTitle">Retirar Valor</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label>Valor a Retirar:
+            <input type="number" id="retirarDespesaFixaValor" placeholder="0.00" step="0.01" min="0" required>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Data de Vencimento:
+            <input type="date" id="retirarDespesaFixaData" required>
+          </label>
+        </div>
+        <div id="despesaFixaInfo" class="info-box">
+          <!-- Informações da despesa fixa serão inseridas aqui -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-cancel">Cancelar</button>
+        <button class="btn btn-confirm" id="confirmarRetiradaDespesaFixa">Retirar</button>
       </div>
     </div>
   </div>

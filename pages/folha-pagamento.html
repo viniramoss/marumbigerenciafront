@@ -18,7 +18,7 @@
       <li><a href="dashboard.html" class="">Dashboard</a></li>
       <li><a href="cadastro.html"  class="">Lançar Entrada</a></li>
       <li><a href="despesas.html"  class="">Lançar Despesa</a></li>
-      <li><a href="relatorio.html" class="">Relatório Boletos</a></li>
+      <li><a href="relatorio.html" class="">Boletos</a></li>
       <li><a href="folha-pagamento.html" class="active">Folha de Pagamento</a></li>
       <li><a href="graficos.html"  class="">Gráficos</a></li>
       <li><a href="settings.html"  class="">Configurações</a></li>
@@ -151,18 +151,44 @@
           </label>
         </div>
         <div class="form-row">
-          <label>Salário:
+          <label>Salário Total:
             <input type="number" id="funcionarioSalario" placeholder="0,00" step="0.01" min="0" required>
           </label>
         </div>
         <div class="form-row">
-          <label>Loja:
-            <select id="funcionarioLoja" required>
-              <option value="">Selecione a loja</option>
-              <option value="UN1">Marumbi I</option>
-              <option value="UN2">Marumbi II</option>
-            </select>
-          </label>
+          <label>Distribuição por Loja:</label>
+          <div class="lojas-distribution">
+            <div class="loja-item">
+              <label class="checkbox-label">
+                <input type="checkbox" id="loja-UN1" value="UN1" checked>
+                <span class="checkmark"></span>
+                Marumbi I
+              </label>
+              <div class="percentage-info">
+                <span id="percent-UN1">55%</span>
+                <span class="value-preview" id="value-UN1">R$ 0,00</span>
+              </div>
+            </div>
+            <div class="loja-item">
+              <label class="checkbox-label">
+                <input type="checkbox" id="loja-UN2" value="UN2">
+                <span class="checkmark"></span>
+                Marumbi II
+              </label>
+              <div class="percentage-info">
+                <span id="percent-UN2">45%</span>
+                <span class="value-preview" id="value-UN2">R$ 0,00</span>
+              </div>
+            </div>
+          </div>
+          <div class="distribution-summary">
+            <small id="distribution-warning" class="warning-text" style="display: none;">
+              Selecione pelo menos uma loja
+            </small>
+            <small class="info-text">
+              O salário será dividido automaticamente conforme as porcentagens configuradas
+            </small>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -338,6 +364,42 @@
       <div class="modal-footer">
         <button class="btn btn-cancel">Cancelar</button>
         <button class="btn btn-danger" id="confirmDeleteOutro">Excluir</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para retirar pró-labore -->
+  <div id="prolaboreModal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="prolaboreModalTitle">Retirar Pró-labore</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label>Valor a Retirar:
+            <input type="number" id="valorProlabore" step="0.01" min="0" placeholder="0,00" required />
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Loja:
+            <select id="lojaProlabore" required>
+              <option value="">Selecione...</option>
+              <option value="UN1">Marumbi I</option>
+              <option value="UN2">Marumbi II</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Descrição:
+            <input type="text" id="descricaoProlabore" placeholder="Ex: Retirada semanal..." />
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-cancel">Cancelar</button>
+        <button class="btn btn-danger" id="zerarProlabore" style="display: none;">Zerar Retiradas</button>
+        <button class="btn btn-confirm" id="salvarProlabore">Retirar</button>
       </div>
     </div>
   </div>

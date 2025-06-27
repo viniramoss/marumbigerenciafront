@@ -1,17 +1,13 @@
 /* cadastro.js – formulário de lançamento com integração API */
 
 const { API_URL } = require('./env-config');
+const utils = require('./utils');
 let initialized = false;
 let buffer = [];
 // Variáveis para armazenar mês e ano atual
 let currentMonth;
 let currentYear;
-// Referências para os modais
-let alertModal;
-let confirmModal;
-let deleteModal;
-// Callbacks para funções de confirmação
-let confirmCallback = null;
+// Callbacks para funções específicas do cadastro
 let deleteCallback = null;
 // Último valor de unidade selecionado
 let lastSelectedUnit = localStorage.getItem('lastSelectedUnit') || 'UN1';
@@ -33,15 +29,15 @@ function updateDateDisplay() {
 function init() {
   if (initialized) return;
   initialized = true;
+  
+  // Garantir que os modais do utils estejam disponíveis
+  utils.initModals();
 
   const form = document.getElementById('entryForm');
   const tbody = document.querySelector('#preview tbody');
 
   // Inicializa as variáveis de mês e ano atual com os valores salvos ou valores atuais
   loadSavedDateSettings();
-  
-  // Inicializa os modais
-  initModals();
   
   // Substitui o campo date padrão por um campo personalizado
   customizeDateField();
@@ -116,10 +112,10 @@ function init() {
         }
       }, 50);
       
-    } catch (error) {
-      console.error('Erro ao salvar entrada:', error);
-      showAlert('Erro', 'Falha ao salvar entrada - veja o console para mais detalhes.');
-    }
+          } catch (error) {
+        console.error('Erro ao salvar entrada:', error);
+        utils.showAlert('Erro', 'Falha ao salvar entrada - veja o console para mais detalhes.');
+      }
   });
 
   // Função para carregar configurações de data salvas
@@ -361,7 +357,7 @@ function init() {
       const id = this.getAttribute('data-id');
       
       // Usar modal de confirmação personalizado
-      showConfirm('Confirmar exclusão', 'Tem certeza que deseja excluir este lançamento?', async () => {
+      utils.showConfirm('Confirmar exclusão', 'Tem certeza que deseja excluir este lançamento?', async () => {
         try {
           const response = await fetch(`${API_URL}/api/entradas/${id}`, {
             method: 'DELETE'
@@ -379,10 +375,10 @@ function init() {
           
           tr.remove();
           
-        } catch (error) {
-          console.error('Erro ao excluir entrada:', error);
-          showAlert('Erro', 'Falha ao excluir entrada - veja o console para mais detalhes.');
-        }
+                  } catch (error) {
+            console.error('Erro ao excluir entrada:', error);
+            utils.showAlert('Erro', 'Falha ao excluir entrada - veja o console para mais detalhes.');
+          }
       });
     });
     
@@ -432,149 +428,7 @@ function init() {
     }
   }
   
-  // Inicializa os modais personalizados
-  function initModals() {
-    // Referências aos modais
-    alertModal = document.getElementById('alertModal');
-    confirmModal = document.getElementById('confirmModal');
-    deleteModal = document.getElementById('deleteModal');
-    
-    if (!alertModal || !confirmModal) {
-      console.error('Modais não encontrados no DOM');
-      return;
-    }
-    
-    // Adiciona eventos para fechar os modais
-    document.querySelectorAll('.modal-close, .btn-cancel').forEach(btn => {
-      btn.addEventListener('click', function() {
-        closeAllModals();
-        
-        // Se tiver uma callback de confirmação, chama com false
-        if (this.closest('#confirmModal') && confirmCallback) {
-          confirmCallback(false);
-          confirmCallback = null;
-        }
-      });
-    });
-    
-    // Eventos para botões OK
-    const alertOk = document.getElementById('alertOk');
-    if (alertOk) {
-      alertOk.addEventListener('click', function() {
-        closeModal(alertModal);
-      });
-    }
-    
-    const confirmOk = document.getElementById('confirmOk');
-    if (confirmOk) {
-      confirmOk.addEventListener('click', function() {
-        closeModal(confirmModal);
-        if (confirmCallback) {
-          confirmCallback(true);
-          confirmCallback = null;
-        }
-      });
-    }
-    
-    // Eventos de teclado para os modais
-    document.addEventListener('keydown', function(e) {
-      // ESC fecha os modais
-      if (e.key === 'Escape') {
-        closeAllModals();
-        if (confirmCallback) {
-          confirmCallback(false);
-          confirmCallback = null;
-        }
-      }
-      
-      // ENTER confirma nos modais de alerta/confirmação
-      if (e.key === 'Enter') {
-        if (isModalActive(alertModal)) {
-          e.preventDefault();
-          closeModal(alertModal);
-        } else if (isModalActive(confirmModal)) {
-          e.preventDefault();
-          closeModal(confirmModal);
-          if (confirmCallback) {
-            confirmCallback(true);
-            confirmCallback = null;
-          }
-        }
-      }
-    });
-    
-    // Clicar fora do modal fecha
-    document.querySelectorAll('.modal-overlay').forEach(modal => {
-      modal.addEventListener('click', function(e) {
-        if (e.target === this) {
-          closeModal(this);
-          if (this.id === 'confirmModal' && confirmCallback) {
-            confirmCallback(false);
-            confirmCallback = null;
-          }
-        }
-      });
-    });
-  }
-  
-  // Função para mostrar alerta personalizado
-  function showAlert(title, message) {
-    if (!alertModal) return;
-    
-    const titleEl = document.getElementById('alertTitle');
-    const messageEl = document.getElementById('alertMessage');
-    
-    if (titleEl) titleEl.textContent = title;
-    if (messageEl) messageEl.textContent = message;
-    
-    alertModal.classList.add('active');
-    
-    // Foca no botão OK para permitir Enter
-    const okButton = document.getElementById('alertOk');
-    if (okButton) setTimeout(() => okButton.focus(), 50);
-  }
-  
-  // Função para mostrar confirmação personalizada
-  function showConfirm(title, message, callback) {
-    if (!confirmModal) return;
-    
-    const titleEl = document.getElementById('confirmTitle');
-    const messageEl = document.getElementById('confirmMessage');
-    
-    if (titleEl) titleEl.textContent = title;
-    if (messageEl) messageEl.textContent = message;
-    
-    // Armazena o callback para ser chamado apenas quando clicar em OK/Confirmar
-    confirmCallback = (confirmed) => {
-      // Só executa a ação se o usuário realmente confirmou
-      if (confirmed) {
-        callback();
-      }
-    };
-    
-    confirmModal.classList.add('active');
-    
-    // Foca no botão confirmar para permitir Enter
-    const okButton = document.getElementById('confirmOk');
-    if (okButton) setTimeout(() => okButton.focus(), 50);
-  }
-  
-  // Função para fechar um modal específico
-  function closeModal(modal) {
-    if (modal) modal.classList.remove('active');
-  }
-  
-  // Função para fechar todos os modais
-  function closeAllModals() {
-    document.querySelectorAll('.modal-overlay').forEach(modal => {
-      modal.classList.remove('active');
-    });
-  }
-  
-  // Verificar se um modal está ativo
-  function isModalActive(modal) {
-    return modal && modal.classList.contains('active');
-  }
+  // Modais específicos do cadastro foram removidos - usando utils.js
 }
 
 // Exporta as funções necessárias
